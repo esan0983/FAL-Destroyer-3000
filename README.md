@@ -32,6 +32,15 @@ Model A Prediction Variables (which will then be used as Model B's priors)
 * Dropped (z-score against cohort)
 * Favorites (z-score against cohort)
 
+## Data Cleaning
+
+The following modifications were done:
+* Removed anime with no episode count as they are still ongoing and thus metrics would fluctuate more than if the series was already finished.
+* Removed anime with no scores as they tend to be on the more obscure and regionally-broadcasted side. This was partially confirmed by checking the other metrics of scorelessa nime.
+* Removed anime with no age rating as I believe that anime with no age rating could mess with analysis. More restrictive anime could have slightly worse metrics.
+* Stripped the endings of synopses that contain messages like "Written by MAL Rewrite" or "Synopsis written by..." as they can affect sentiment analysis.
+
 ## Commit Notes
-* Drafted extraction function
-* Extraction function does not have a failsafe for breaking 24-hour rate limits. Will need a way to save the csv regardless, remind the user of what page number did the breaking occur, and a way to "continue" the extraction phase when rerun
+* Failsafe done
+* Need one more day to finish data collection
+* Already drafted a data cleaning notebook
