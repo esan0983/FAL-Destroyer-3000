@@ -40,7 +40,10 @@ The following modifications were done:
 * Removed anime with no age rating as I believe that anime with no age rating could mess with analysis. More restrictive anime could have slightly worse metrics.
 * Stripped the endings of synopses that contain messages like "Written by MAL Rewrite" or "Synopsis written by..." as they can affect sentiment analysis.
 
+## Interesting Findings from EDA
+* Higher score averages for the mid 90's and lower score averages for the mid 2010's.
+* Slightly higher score averages for shows under the restriction of "Violence & Profanity."
+* Slightly higher score averages for sequel shows.
+
 ## Commit Notes
-* Failsafe done
-* Need one more day to finish data collection
-* Already drafted a data cleaning notebook
+* Did a good chunk of EDA, will most likely continue with visualizing relationships between metrics.

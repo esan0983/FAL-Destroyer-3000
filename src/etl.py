@@ -229,6 +229,7 @@ def retrieve_data(page_number):
 
         # Check if there's a next page
         has_next = page_data.get("pagination", {}).get("has_next_page", False)
+        print(f"Has next: {has_next}")
 
         # Final checks before proceeding
         arrays = [id_array, title_array, source_array, episode_array, synopsis_array, year_array, season_array, producers_array,
@@ -240,6 +241,7 @@ def retrieve_data(page_number):
         return (arrays if all_same_length else []), has_next
     else:
         print(f"Failed to retrieve data {response.status_code}")
+        print(f"Server Message: {response.text}")
         raise ValueError()
 
 # TESTING WORKS!
@@ -293,7 +295,7 @@ initial_data = pd.read_csv("data/raw/anime_data.csv")
 
 has_next = True
 max_pages = 100000
-page = 965
+page = 1001
 
 def run(has_next, current_page, df):
     print("ETL Pipline Currently Running!")
