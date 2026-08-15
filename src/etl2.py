@@ -6,59 +6,7 @@ import time
 import pandas as pd
 import os
 
-base_url = "https://api.tenrai.org/v1"
-
-# ---------------------------------------------------------------------------
-# Low-level fetch helpers (unchanged behavior from etl.py, but tolerant of 404s
-# since we're now walking raw MAL IDs instead of paginated listing results —
-# not every ID will correspond to a real, TV-type entry)
-# ---------------------------------------------------------------------------
-
-def get_anime(id):
-    url = f"{base_url}/anime/{id}"
-    response = requests.get(url)
-
-    if response.status_code == 200:
-        return response.json()
-    elif response.status_code == 404:
-        return None
-    else:
-        raise ValueError(f"Failed to retrieve data {response.status_code}")
-
-def get_anime_episodes(id):
-    url = f"{base_url}/anime/{id}/episodes"
-    response = requests.get(url)
-
-    if response.status_code == 200:
-        return response.json()
-    elif response.status_code == 404:
-        return {"data": []}
-    else:
-        raise ValueError(f"Failed to retrieve data {response.status_code}")
-
-def get_anime_statistics(id):
-    url = f"{base_url}/anime/{id}/statistics"
-    response = requests.get(url)
-
-    if response.status_code == 200:
-        return response.json()
-    elif response.status_code == 404:
-        return None
-    else:
-        raise ValueError(f"Failed to retrieve data {response.status_code}")
-
-def get_prequel(id):
-    url = f"{base_url}/anime/{id}/relations"
-    response = requests.get(url)
-
-    if response.status_code == 200:
-        relation_data = response.json()
-        relations = [r['relation'] for r in relation_data.get('data', [])]
-        return "Prequel" in relations
-    elif response.status_code == 404:
-        return False
-    else:
-        raise ValueError(f"Failed to retrieve data {response.status_code}")
+from utils import base_url, get_anime, get_anime_name, get_anime_episodes, get_anime_statistics, get_prequel
 
 
 # ---------------------------------------------------------------------------

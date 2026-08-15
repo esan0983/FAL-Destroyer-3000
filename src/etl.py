@@ -5,51 +5,8 @@ import time
 import pandas as pd
 import os
 
-base_url = "https://api.tenrai.org/v1"
+from utils import base_url, get_anime, get_anime_name, get_anime_episodes, get_anime_statistics, get_prequel
 
-def get_anime(id):
-    url = f"{base_url}/anime/{id}"
-    response = requests.get(url)
-
-    if response.status_code == 200:
-        anime_data = response.json()
-        # print("Data retrieved!")
-        return anime_data
-    else:
-        raise ValueError(f"Failed to retrieve data {response.status_code}")
-
-def get_anime_name(id):
-    url = f"{base_url}/anime/{id}"
-    response = requests.get(url)
-
-    if response.status_code == 200:
-        anime_data = response.json()
-        anime_name = anime_data['data']['title']
-        # print("Data retrieved!")
-        return anime_name
-    else:
-        raise ValueError(f"Failed to retrieve data {response.status_code}")
-
-def get_anime_episodes(id):
-    url = f"{base_url}/anime/{id}/episodes"
-    response = requests.get(url)
-
-    if response.status_code == 200:
-        anime_data = response.json()
-        # print("Episode data retrieved!")
-        return anime_data
-    else:
-        raise ValueError(f"Failed to retrieve data {response.status_code}")
-def get_anime_statistics(id):
-    url = f"{base_url}/anime/{id}/statistics"
-    response = requests.get(url)
-
-    if response.status_code == 200:
-        # print("Statistics retrieved!")
-        anime_data = response.json()
-        return anime_data
-    else:
-        raise ValueError(f"Failed to retrieve data {response.status_code}")
 
 # anime_titles = []
 # for i in range(20):
@@ -86,30 +43,7 @@ def get_anime_statistics(id):
 # Dropped same as completed and watching
 # Favorites: anime_data['data']['favorites']
 
-def get_anime_page():
-    url = f"{base_url}/anime"
-    response = requests.get(url)
 
-    if response.status_code == 200:
-        anime_data = response.json()
-        # print("Page data retrieved!")
-        return anime_data
-    else:
-        print(f"Failed to retrieve data {response.status_code}")
-        raise ValueError()
-
-def get_prequel(id):
-    url = f"{base_url}/anime/{id}/relations"
-    response = requests.get(url)
-
-    if response.status_code == 200:
-        # print("Prequel data retrieved!")
-        relation_data = response.json()
-        relations = [r['relation'] for r in relation_data.get('data', [])]
-        return (True if "Prequel" in relations else False)
-    else:
-        print(f"Failed to retrieve data {response.status_code}")
-        raise ValueError()
 
 
 # print(json.dumps(get_anime_page(), indent=4))
