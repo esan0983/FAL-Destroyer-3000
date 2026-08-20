@@ -24,6 +24,7 @@ Model A Data:
 * Demographics
 * Themes
 * Is it a sequel? 
+* Popularity of source material (score + members)
 
 Model A Prediction Variables (which will then be used as Model B's priors)
 * Score
@@ -54,9 +55,48 @@ The following modifications were done:
 * Performed multi-layer binarization of genres, themes, and demographics
 * Decided that studios and producers have pretty small overlap and correlation. Planning to make a separate learned embedding
 
-## Commit Notes
-* Did a good chunk of EDA, will most likely continue with visualizing relationships between metrics.
-* Two new .py files: adaptation_collection and stats_collection. The former will collect the scores and member count of all possible source materials (manga, LN, etc) from one anime. This will be z-scored against works of the same source material type. In the end, if there are multiple sources, the highest z-score will be chosen-- this will serve as our "source material hype factor" that could be a really good indicator for success. The latter will collect all possible scores and member counts from all possible sources that can be accessible. The mean and standard deviation will help determine the z-score for the aforementioned adaptation metrics.
-* adaptation_collection.py has not been tested yet because stats_collection.py is still ongoing.
-* image_extraction saves all thumbnails
+## Statistics
+
+We will ignore the Award Winning genre because of their obvious high metrics.
+
+### Score
+* Twelve genres were shown to have a statistically significant effect. In particular, the Sports and Drama genres has the biggest effect. The Ecchi and Horror genres have a big negative effect on score.
+* More than half of the themes had a statistically significant effect. In particular, the "Iyashikei" (slice-of-life) theme had the biggest positive effect. The themes Strategy Game, Parody, and Harem had pretty big negative effects.
+* All demographics had a statistically significant effect. Only the Kids demographic had a negative effect.
+
+### Watching + Completed
+* Only three genres did not have a statistically significant effect. The Romance and Suspense genres had the biggest positive effect.
+* More than half of the themes had a statistically significant effect. Love Polygon, Gore, and Isekai were three of the most postively impactful themes, while Pets had the biggest negative impact.
+* All demographics had a statistically significant effect. The Kids demographic had a really big negative effect.
+
+### Favorites
+* Only two genres did not have a statistically significant effect. The Romance and Suspense genres had the biggest positive ffect. The horror genre had the biggest negative effect.
+* More than half of the themes had a statistically significant effect. Love Polygon was the most positively impactful theme, while Pets and Strategy Game had the biggest negative impact.
+* All demographics had a statistically significant effect. The Kids demographic had a really big negative effect.
+
+### Forum Posts
+* Only two genres did not have a statistically significant effect. The Romance and Suspense genres had the biggest positive ffect. The horror genre had the biggest negative effect.
+* More than half of the themes had a statistically significant effect. Love Polygon and Psychological were the most positively impactful themes, while Pets and Strategy Game had the biggest negative impact.
+* All demographics had a statistically significant effect. The Kids demographic had a really big negative effect.
+
+### Overall Effects
+* Taking rating and the sequel boolean, the top 3 most positive statistically significant features on score (barring award winning) are: Iyashikei Theme, Shounen Demographic, and Gag Humor Theme. The top 3 most negative statistically significant features on score are: Horror Genre, Kids Demographic, and Ecchi Genre.
+* The top 3 most positive statistically significant features on score (barring award winning) are: R17 Violence & Profanity Rating, Otaku Culture Theme, and Shounen Demographic. The top 3 most negative statistically significant features on score are: Kids Demographic, Strategy Game Theme, and Samurai Theme.
+* The top 3 most positive statistically significant features on score (barring award winning) are: R17 Violence & Profanity Rating, Iyashikei Theme, and Shounen Demographic. The top 3 most negative statistically significant features on score are: Strategy Game Theme, Horror Genre, and Samurai Theme.
+* The top 3 most positive statistically significant features on score (barring award winning) are: R17 Violence & Profanity Rating (actually bigger than award winning), PG13 Age Rating, and R17 Mild Nudity Rating. The top 3 most negative statistically significant features on score are: Strategy Game Theme, Kids Demographic, and PG Children Rating.
+
+## Limitations
 * Was not able to do AniList GraphQL API because it's highly prone to mismatched titles
+
+## Commit Notes
+* Redid get_anime util function, etl2.py, and image_extraction.py. Have not tested yet due to rate limits
+* Improved data cleaning and EDA section
+* Performed log1p wc, favorites, and forum first before z-scoring due to heavy data skew
+* Collected source material statistics to perform z-scoring to evaluate source material hype
+* Collected prequel statistics
+* Collected embedding tensors for both thumbnail and synopsis
+* Integrated most external data collection and data cleaning protocols to etl2.py
+
+## Post-commit Plans
+* Will run adaptation_collection first and do a test run of the ML notebook before revising and redoing the entire pipeline from etl2.py all the way to the ML notebook
+* Will add bools to the dataset such as "has_prequel" and "has_source"

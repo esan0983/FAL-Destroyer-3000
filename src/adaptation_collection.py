@@ -11,7 +11,7 @@ target_media_types = {
     "Light Novel", "Manga", "Novel", "Doujinshi", "One-shot", "Manhwa", "Manhua"
 }
 
-INPUT_PATH = "data/processed/anime_data_1.csv"
+INPUT_PATH = "data/processed/anime_data_1.parquet"
 OUTPUT_PATH = "data/processed/adaptations.parquet"
 
 
@@ -56,16 +56,21 @@ def collect_adaptations(mal_ids):
 
             if matching_entry is not None:
                 adaptation_id = matching_entry.get("mal_id")
-                try:
-                    manga_json = get_manga(adaptation_id)
-                    score_lists[mt].append(manga_json.get("data", {}).get("score"))
-                    member_lists[mt].append(manga_json.get("data", {}).get("members"))
-                except Exception as e:
-                    print(f"  Failed to get manga data for adaptation {adaptation_id}: {e}")
-                    score_lists[mt].append(None)
-                    member_lists[mt].append(None)
-
-                time.sleep(1.1)  # respect rate limit
+                request_success = False
+                while not request_success:
+                    try:
+                        manga_json = get_manga(adaptation_id)
+                        score_lists[mt].append(manga_json.get("data", {}).get("score"))
+                        member_lists[mt].append(manga_json.get("data", {}).get("members"))
+                    except Exception as e:
+                        print(f"  Failed to get manga data for adaptation {adaptation_id}: {e}")
+                        if e.response.status_code == 429:
+                            print(f"Rate limited on adaptation id {adaptation_id}. Backing off 5s and retrying...")
+                            time.sleep(5)
+                        else:
+                            score_lists[mt].append(None)
+                            member_lists[mt].append(None)
+                            request_success = True
             else:
                 score_lists[mt].append(None)
                 member_lists[mt].append(None)
@@ -83,9 +88,8 @@ def build_dataframe(mal_ids, score_lists, member_lists):
 
     return pd.DataFrame(data)
 
-
 def main():
-    df_ids = pd.read_csv(INPUT_PATH)
+    df_ids = pd.read_parquet(INPUT_PATH)
     mal_ids = df_ids["mal_id"].tolist()
 
     score_lists, member_lists = collect_adaptations(mal_ids)

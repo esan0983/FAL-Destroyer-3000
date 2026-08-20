@@ -39,10 +39,12 @@ def run(df, folder_path, start_id):
                 try:
                     anime_json = get_anime(anime_id)
                     success = True 
-                except ValueError as e:
-                    # Rate-limited or server error: back off and retry same ID
-                    print(f"Error on id {anime_id}: {e}. Backing off 5s and retrying...")
-                    time.sleep(5)
+                except requests.exceptions.HTTPError as e:
+                    if e.response.status_code == 429:
+                        print(f"Rate limited on id {anime_id}. Backing off 5s and retrying...")
+                        time.sleep(5)
+                    else:
+                        print(f"Unhandled HTTP error on id {anime_id}: {e}. Will return none on the json.")
 
             if anime_json is None:
                 return None

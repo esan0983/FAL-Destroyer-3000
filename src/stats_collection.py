@@ -15,7 +15,7 @@ def get_stats(id):
 
     return manga['score'], manga['members'], manga['type']
 
-def run(starting_id, max_consecutive_misses, save_every):
+def run(starting_id, max_consecutive_misses, save_every, score_data, member_data):
     consecutive_misses = 0
     output_dir = Path("data/stats")
     score_path = output_dir / "scores.json"
@@ -23,19 +23,9 @@ def run(starting_id, max_consecutive_misses, save_every):
 
 
     # CHANGE INITIALIZATION METHOD IF YOU EXPERIENCE A CRASH
-    scores = {
-        "Manga": [],
-        "Light Novel": [],
-        "Novel": [],
-        "Doujinshi": []
-    }
+    scores = score_data
     
-    members = {
-        "Manga": [],
-        "Light Novel": [],
-        "Novel": [],
-        "Doujinshi": []
-    }
+    members = member_data
 
     current_id = starting_id
     
@@ -75,17 +65,44 @@ def run(starting_id, max_consecutive_misses, save_every):
 
         current_id += 1
 
+    with open(score_path, "w") as file:
+        json.dump(scores, file, indent=4)
+    with open(member_path, "w") as file2:
+        json.dump(members, file2, indent=4)
+
     print("Finished! Confirmation below:")
     print(f"Last id attempted: {current_id}")
     print(f"Consecutive misses at stop: {consecutive_misses}")
 
 if __name__ == "__main__":
-    START_ID = 1
-    MAX_CONSECUTIVE_MISSES = 5000
+    START_ID = 171501
+    MAX_CONSECUTIVE_MISSES = 2000
     SAVE_EVERY = 500
+    init_dir = Path("data/stats")
+    init_score = init_dir / "scores.json"
+    init_members = init_dir / "members.json"
+
+    try:
+        with open(init_score, "r", encoding="utf-8") as file:
+            SCORE_DATA = json.load(file)
+    except FileNotFoundError:
+        print(f"Error: The file at {init_score} was not found.")
+    except json.JSONDecodeError:
+        print("Error: The file contains invalid JSON.")
+
+    try:
+        with open(init_members, "r", encoding="utf-8") as file:
+            MEMBER_DATA  = json.load(file)
+    except FileNotFoundError:
+        print(f"Error: The file at {init_members} was not found.")
+    except json.JSONDecodeError:
+        print("Error: The file contains invalid JSON.") 
+
 
     run(
         starting_id=START_ID,
         max_consecutive_misses=MAX_CONSECUTIVE_MISSES,
         save_every=SAVE_EVERY,
+        score_data=SCORE_DATA,
+        member_data=MEMBER_DATA
     )

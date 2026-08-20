@@ -1,12 +1,53 @@
 # Partially assisted by Claude
+# Planning to integrate some of the data cleaning protocols, image extraction, and adaptation collection for a final data pass
 
 import requests
 import json
 import time
 import pandas as pd
 import os
+import numpy as np
+from pathlib import Path
 
 from utils import base_url, get_anime, get_anime_name, get_anime_episodes, get_anime_statistics, get_prequel
+from adaptation_collection import collect_adaptations, target_media_types
+from image_extraction import download_image
+
+img_path = "data/images"
+
+# ---------------------------------------------------------------------------
+# Source material initialization (takes mean and stdev of source material score and log1p'd member count)
+# ---------------------------------------------------------------------------
+init_dir = Path("data/stats")
+init_score = init_dir / "scores.json"
+init_members = init_dir / "members.json"
+
+try:
+    with open(init_score, "r", encoding="utf-8") as file:
+        score_data = json.load(file)
+except FileNotFoundError:
+    print(f"Error: The file at {init_score} was not found.")
+except json.JSONDecodeError:
+    print("Error: The file contains invalid JSON.")
+
+try:
+    with open(init_members, "r", encoding="utf-8") as file:
+        member_data  = json.load(file)
+except FileNotFoundError:
+    print(f"Error: The file at {init_members} was not found.")
+except json.JSONDecodeError:
+    print("Error: The file contains invalid JSON.")
+
+score_means = {}
+score_stdevs = {}
+member_means = {}
+member_stdevs = {}
+
+for mt in target_media_types:
+    score_means[mt] = np.mean(score_data[mt])
+    score_stdevs[mt] = np.std(score_data[mt])
+    member_means[mt] = np.mean(np.log1p(member_data[mt]))
+    member_stdevs[mt] = np.std(np.log1p(member_data[mt]))
 
 
 # ---------------------------------------------------------------------------
@@ -34,8 +75,18 @@ def extract_single(id_num):
     if not anime:
         return None
 
-    # Only keep TV entries, same filter transform_data() applied before
-    if anime.get('type') != "TV":
+    # Criteria from data cleaning:
+    # 1. Must be a TV series
+    # 2. Must be currently airing
+    # 3. Must have a score (justification in README)
+    # 4. Must have a year
+    # 5. Must have a season
+    if (anime.get('type') != "TV" or
+        not anime.get('airing') or
+        anime.get('score') is not None or 
+        anime.get('year') is not None or
+        anime.get('season') is not None
+    ):
         return "SKIP"  # exists, but filtered out downstream — not a "miss"
 
     title = anime.get('title')
@@ -47,7 +98,7 @@ def extract_single(id_num):
     rating = anime.get('rating')
     favorites = anime.get('favorites')
     score = anime.get('score')
-    anime_type = anime.get('type')
+    members = anime.get('members') # FOR PREQUEL Z-SCORING PURPOSES
 
     producers = [p['name'] for p in anime.get('producers', [])]
     genres = [g['name'] for g in anime.get('genres', [])]
@@ -55,10 +106,43 @@ def extract_single(id_num):
     demographics = [d['name'] for d in anime.get('demographics', [])]
     themes = [t['name'] for t in anime.get('themes', [])]
 
-    time.sleep(1.1)
-    sequel = get_prequel(id_num)
+    # GET PREQUEL DATA
+    # NOTE: PAY ATTENTION TO PREQUEL TYPE IN DATA CLEANING NOTEBOOK. WE ARE Z-SCORING BY COHORT, SO IT'S IMPORTANT TO
+    # REMOVE NON-TV PREQUELS   
+    sequel, prequel_id = get_prequel(id_num)
 
-    time.sleep(1.1)
+    prequel_data = {}
+    if prequel_id is None:
+        prequel_data['prequel_score'] = None
+        prequel_data['prequel_members'] = None
+        prequel_data['prequel_type'] = None
+    else:
+        prequel_json = get_anime(prequel_id)
+        prequel = prequel_json.get('data', {})
+
+        prequel_data['prequel_score'] = prequel.get('score')
+        prequel_data['prequel_members'] = prequel.get('members')
+        prequel_data['prequel_type'] = prequel.get('type')
+
+
+    # GET ADAPTATION INFORMATION FROM ADAPTATION_COLLECTION.PY
+    score_list, member_list = collect_adaptations(id_num)
+
+    # TURN INTO KEY AND VALUE
+    adaptation_data = {}
+    for mt in target_media_types:
+        col_key = mt.lower().replace(" ", "_").replace("-", "_")
+
+        if score_list[mt] is not None:
+            adaptation_data[f"{col_key}_score_z"] = (score_list[mt] - score_means[mt]) / score_stdevs[mt]
+        else:
+            adaptation_data[f"{col_key}_score_z"] = None
+
+        if member_list[mt] is not None:
+            adaptation_data[f"{col_key}_members_z"] = (np.log1p(member_list[mt]) - member_means[mt]) / member_stdevs[mt]
+        else:
+            adaptation_data[f"{col_key}_members_z"] = None
+
     stat_json = get_anime_statistics(id_num)
     if stat_json is not None:
         wc = stat_json['data']['watching'] + stat_json['data']['completed']
@@ -67,15 +151,12 @@ def extract_single(id_num):
         wc = None
         dropped = None
 
-    time.sleep(1.1)
     eps_json = get_anime_episodes(id_num)
     forum = sum(
         ep.get('replies', 0)
         for ep in eps_json.get('data', [])
         if ep.get('mal_id', 0) <= 13
     )
-
-    time.sleep(1.1)
 
     row = {
         'mal_id': id_num,
@@ -97,9 +178,18 @@ def extract_single(id_num):
         'wc': wc,
         'dropped': dropped,
         'forum': forum,
-        'type': anime_type,
     }
-    return row
+
+    # CONCATENATE OTHER DICTS
+    final_row = row | adaptation_data | prequel_data
+
+    # IMAGE EXTRACTION
+    image_url = anime.get('images').get('jpg').get('large_image_url')
+    if image_url is not None:
+        file_name = str(id_num) + ".jpg"
+        download_image(image_url, img_path, file_name)
+
+    return final_row
 
 
 def load_data(df):
@@ -134,14 +224,15 @@ def run(start_id, df, max_id, max_consecutive_misses, save_every):
         if max_id is not None and current_id > max_id:
             print(f"Reached max_id={max_id}, stopping.")
             break
-
         try:
             result = extract_single(current_id)
-        except ValueError as e:
-            # Rate-limited or server error: back off and retry same ID
-            print(f"Error on id {current_id}: {e}. Backing off 5s and retrying...")
-            time.sleep(5)
-            continue
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 429:
+                print(f"Rate limited on id {current_id}. Backing off 5s and retrying...")
+                time.sleep(5)
+                continue 
+            else:
+                print(f"Unhandled HTTP error on id {current_id}: {e}. Skipping.")
 
         if result is None:
             consecutive_misses += 1
@@ -177,7 +268,7 @@ def run(start_id, df, max_id, max_consecutive_misses, save_every):
 if __name__ == "__main__":
     initial_data = pd.read_csv("data/raw/anime_data.csv")
 
-    START_ID = 54804  # resume point after page-based crawl stalled at page 1000
+    START_ID = 1  # resume point after page-based crawl stalled at page 1000
     # Set MAX_ID if you want a hard ceiling; otherwise the miss-streak
     # threshold below will stop the crawl once it runs past real MAL IDs.
     MAX_ID = 70000

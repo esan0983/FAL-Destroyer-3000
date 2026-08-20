@@ -7,18 +7,6 @@ import os
 
 base_url = "https://api.tenrai.org/v1"
 
-def get_anime(id):
-    url = f"{base_url}/anime/{id}"
-    response = requests.get(url)
-
-    if response.status_code == 200:
-        anime_data = response.json()
-        # print("Page data retrieved!")
-        return anime_data
-    else:
-        print(f"Failed to retrieve data {response.status_code}")
-        raise ValueError()
-
 def get_anime_page():
     url = f"{base_url}/anime"
     response = requests.get(url)
@@ -39,7 +27,10 @@ def get_prequel(id):
         # print("Prequel data retrieved!")
         relation_data = response.json()
         relations = [r['relation'] for r in relation_data.get('data', [])]
-        return (True if "Prequel" in relations else False)
+        prequel = next((item for item in relation_data["data"] if item["relation"] == "Prequel"), None)
+        if prequel is not None:
+            return_id = prequel["entry"][0]["mal_id"] if prequel and prequel["entry"] else None
+        return (True if "Prequel" in relations else False), return_id
     else:
         print(f"Failed to retrieve data {response.status_code}")
         raise ValueError()
@@ -89,4 +80,17 @@ def get_manga(id):
         print(f"Failed to retrieve data {response.status_code}")
         return None
         
+    return response.json()
+
+def get_anime(id):
+    url = f"{base_url}/anime/{id}/full"
+    response = requests.get(url)
+
+    if response.status_code == 429:
+        raise requests.exceptions.HTTPError("Rate limited", response=response)
+
+    if response.status_code != 200:
+        print(f"Failed to retrieve data {response.status_code}")
+        return None
+
     return response.json()
