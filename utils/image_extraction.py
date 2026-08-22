@@ -1,13 +1,9 @@
-# DISCLAIMER: This will be separate from etl2.py since I want to emphasize that the ETL phase loads the dataset to be used in EDA and
-# statistical analysis.
-
 import os
 import requests
 import pandas as pd
-import json
 import time
 
-from utils import base_url, get_anime
+from api import get_anime
 
 def download_image(image_url, folder_path, file_name):
     local_filename = os.path.join(folder_path, file_name)
