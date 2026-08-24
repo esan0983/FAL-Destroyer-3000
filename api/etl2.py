@@ -410,11 +410,11 @@ if __name__ == "__main__":
     custom_bool = False # CHANGE THIS FOR EITHER STANDARD COLLECTION OR FALL 2026 COLLECTION
     initial_data = pd.read_csv("data/raw/current_data.csv") if custom_bool else pd.read_csv("data/raw/anime_data.csv")
 
-    START_ID = 62988  # resume point
+    START_ID = 1  # resume point
     # Set MAX_ID if you want a hard ceiling; otherwise the miss-streak
     # threshold below will stop the crawl once it runs past real MAL IDs.
     MAX_ID = 75000
-    MAX_CONSECUTIVE_MISSES = 1000
+    MAX_CONSECUTIVE_MISSES = 50
     SAVE_EVERY = 25
 
     # FOR STANDARD COLLECTION

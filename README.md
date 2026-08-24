@@ -56,7 +56,7 @@ The following modifications were done:
 * Performed semantic analysis on all synopses
 * Performed bucketing for genres and themes
 * Performed multi-layer binarization of genres, themes, and demographics
-* Decided that studios and producers have pretty small overlap and correlation. Planning to make a separate learned embedding
+* Decided that studios and producers have pretty small overlap and correlation. A learned embedding method was used
 
 ## Statistics
 
@@ -92,13 +92,16 @@ We will ignore the Award Winning genre because of their obvious high metrics.
 * I was not able to do AniList GraphQL API because it's highly prone to mismatched titles.
 * It's possible for an anime to have two or more source materials of the same type (Manga, LN, etc). The code adaptation_collection.py only collects statistics from the lowest MAL ID instead of collecting all of them. This is done to make sure that lists are aligned and to save API calls as I have rate limits for Tenrai API. This is a justifiable approximation as this is an extreme minority edge case.
 * I can only collect statistics on the day of data collection, not when the first 13 episodes were released. Hence, there will be a "slow burn" bias where old, popular shows will have inflated counts for most statistics.
+* The API can only track forum posts, not unique posters. We will assume that there is a linear correlation between forum posts and unique posters.
 
 ## Commit Notes
-* Data leakage problems in my initial Multimodal Neural Network was fixed by ChatGPT. Some things I learned were: splitting very early in the pipeline, batch normalization instead of normalizing everything beforehand, etc.
-* Need to fix 429's for most of the utils calls in etl2.py
-* Right now, most of the notebooks are a mess. To reduce technical debt, I'll be patient and wait for the second data collection phase to finish, and then I'll integrate both regular and fall 2026 data to all of the notebooks. Don't expect the notebooks to be completely correct for now.
-* Organized directories
+* Added a time series notebook with a KalmanFilter class and a test. Seems to be working nicely!
+* Changed neural network model to spit out a normal distribution instead. MSE is now replaced by Negative Log Likelihood.
+* Upcoming Fall 2026 anime is now in the dataset as well.
 
 ## Post-commit Plans
-* Will run adaptation_collection first and do a test run of the ML notebook before revising and redoing the entire pipeline from etl2.py all the way to the ML notebook
-* Will add bools to the dataset such as "has_thumbnail" and "has_source" (former is added, latter will be feature engineered)
+* Update statistics and EDA notebooks
+* Add a baseline model (will be pretty hard to choose)
+* Feed Fall 2026 anime into the neural network and have it predict my roster
+* Predict measure importance with Kalman filters as well (MAL provides approximations so I can use that for my priors)
+* Update the first half of this README (up to feature engineering), especially EDA
