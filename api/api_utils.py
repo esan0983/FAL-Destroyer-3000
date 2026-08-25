@@ -15,6 +15,8 @@ def get_anime_page():
         print(f"Failed to retrieve data {response.status_code}")
         raise ValueError()
 
+    return response.json()
+
 def get_anime_episodes(id):
     url = f"{base_url}/anime/{id}/episodes"
     response = requests.get(url)
@@ -26,6 +28,8 @@ def get_anime_episodes(id):
     if response.status_code != 200:
         print(f"Failed to retrieve data {response.status_code}")
         return None
+
+    return response.json()
     
 def get_anime_statistics(id):
     url = f"{base_url}/anime/{id}/statistics"

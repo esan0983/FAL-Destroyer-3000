@@ -1,12 +1,28 @@
 import pandas as pd
 import ast
+import numpy as np
 
 def parse_list_col(x):
-    if pd.isna(x):
-        return []
-    if isinstance(x, list):  
-        return x
+  if isinstance(x, (list, tuple, np.ndarray)):
+    return list(x)
+
+  if pd.isna(x) or x is None:
+    return []
+
+  if isinstance(x, str):
+    x = x.strip()
+    if not x:
+      return []
     try:
-        return ast.literal_eval(x)
+      parsed = ast.literal_eval(x)
+      return (
+          parsed
+          if isinstance(parsed, list)
+          else [parsed]
+          if parsed is not None
+          else []
+      )
     except (ValueError, SyntaxError):
-        return []
+      return []
+
+  return [x]
