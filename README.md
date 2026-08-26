@@ -59,7 +59,7 @@ The following modifications were done:
 
 ## Statistics
 
-We will ignore the Award Winning genre because of their obvious high metrics.
+We will ignore the Award Winning genre because of their obvious high metrics. Since WC has a pretty high correlation with favorites, dropped, and forum, we will only focus on Score, WC, and Drop Rate for this section to avoid cluttering.
 
 ### Score
 * Twelve genres were shown to have a statistically significant effect. In particular, the Sports and Drama genres has the biggest effect. The Ecchi and Horror genres have a big negative effect on score.
@@ -71,21 +71,15 @@ We will ignore the Award Winning genre because of their obvious high metrics.
 * More than half of the themes had a statistically significant effect. Love Polygon, Gore, and Isekai were three of the most postively impactful themes, while Pets had the biggest negative impact.
 * All demographics had a statistically significant effect. The Kids demographic had a really big negative effect.
 
-### Favorites
-* Only two genres did not have a statistically significant effect. The Romance and Suspense genres had the biggest positive ffect. The horror genre had the biggest negative effect.
-* More than half of the themes had a statistically significant effect. Love Polygon was the most positively impactful theme, while Pets and Strategy Game had the biggest negative impact.
-* All demographics had a statistically significant effect. The Kids demographic had a really big negative effect.
-
-### Forum Posts
-* Only two genres did not have a statistically significant effect. The Romance and Suspense genres had the biggest positive ffect. The horror genre had the biggest negative effect.
-* More than half of the themes had a statistically significant effect. Love Polygon and Psychological were the most positively impactful themes, while Pets and Strategy Game had the biggest negative impact.
-* All demographics had a statistically significant effect. The Kids demographic had a really big negative effect.
+### Drop Rate
+* Only three genres did not have a statistically significant effect. The least likely genres to be dropped are Romance and Sports.
+* More than half of the themes had a statistically significant effect. Pets and Parody were three of the most impactful themes, while Isekai, Gore, and Iyashikei had the lowest drop rate coefficients.
+* All demographics had a statistically significant effect. The Kids demographic had a really big positive effect.
 
 ### Overall Effects
 * Taking rating and the sequel boolean, the top 3 most positive statistically significant features on score (barring award winning) are: Iyashikei Theme, Shounen Demographic, and Gag Humor Theme. The top 3 most negative statistically significant features on score are: Horror Genre, Kids Demographic, and Ecchi Genre.
-* The top 3 most positive statistically significant features on score (barring award winning) are: R17 Violence & Profanity Rating, Otaku Culture Theme, and Shounen Demographic. The top 3 most negative statistically significant features on score are: Kids Demographic, Strategy Game Theme, and Samurai Theme.
-* The top 3 most positive statistically significant features on score (barring award winning) are: R17 Violence & Profanity Rating, Iyashikei Theme, and Shounen Demographic. The top 3 most negative statistically significant features on score are: Strategy Game Theme, Horror Genre, and Samurai Theme.
-* The top 3 most positive statistically significant features on score (barring award winning) are: R17 Violence & Profanity Rating (actually bigger than award winning), PG13 Age Rating, and R17 Mild Nudity Rating. The top 3 most negative statistically significant features on score are: Strategy Game Theme, Kids Demographic, and PG Children Rating.
+* The top 3 most positive statistically significant features on wc (barring award winning) are: R17 Violence & Profanity Rating, Otaku Culture Theme, and Shounen Demographic. The top 3 most negative statistically significant features on wc are: Kids Demographic, Strategy Game Theme, and Samurai Theme.
+* The top 3 most positive statistically significant features on drop rate are: Kids Demographic, Samurai Theme, and Parody Theme. The top 3 most negative statistically significant features on drop rate are: Violence Rating, Iyashikei Theme, and Mahou Shouji Theme.
 
 ## Machine Learning
 A baseline model from the LightGBM package was used. Ignoring producers and studios for convenience, the model achieved a Gaussian LLNs in the range of 1.38-1.40, which is barely better than if the model was randomly sampling from a normal distribution.  
@@ -104,16 +98,15 @@ For forecasting, I used Kalman filters. Since it's too mathematically complex to
 * I can only collect statistics on the day of data collection, not when the first 13 episodes were released. Hence, there will be a "slow burn" bias where old, popular shows will have inflated counts for most statistics.
 * The API can only track forum posts, not unique posters. We will assume that there is a linear correlation between forum posts and unique posters.
 
-## Commit Notes
-* NLL for forum_z is negative
-* Statistics section is still somewhat broken and incomplete (prequel data messing up OLS)
-* Added LightGBM as baseline model
-* Roster Draft 1 is decided!
-* Reverted drop rate back to drop so the heuristic formula used in notebook 6 is sane
+## More Commit Notes
+* Statistics notebook is still somewhat broken and incomplete (prequel data messing up OLS)
+* Added feature importance (graphs will be released soon)
+* Added drop_rate back for statistical analysis
+* Tested the neural network without image data
+* Some cleaning done for the earlier notebooks
 
 ## Post-commit Plans
-* Update statistics and EDA notebooks (I really need to do this)
-* Predict measure importance with Kalman filters as well (MAL provides approximations so I can use that for my priors)
-* Update the first half of this README (up to feature engineering), especially EDA
-* Add Spring 2026 benchmarks to notebook 6
-* Figure out a way to make data input much easier for notebook 6
+* Predict metric importance and raw wc with Kalman filters as well (MAL provides approximations so I can use that for my priors)
+* Update the first half of this README, especially EDA (in progress)
+* Figure out a way to make data input much easier for notebook 6 (in progress)
+* Save all graphs for feature importance
