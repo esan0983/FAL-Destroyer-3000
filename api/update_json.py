@@ -15,24 +15,13 @@ def create_json(df):
     titles = df['title']
 
     current_stats = {
-        0 : { # change to actual date
+        0 : {
             
         }
     }
 
     for title in titles:
-        current_stats.get(0, {})[title] = {
-            "score" : 0, # change to actual score
-            "forum": 0, # change to actual forum
-            "dropped": 0, # change to actual dropped
-            "dropped_dot": 0,
-            "wc": 0, # change to actual wc
-            "wc_dot": 0,
-            "favorites": 0, # change to actual fav
-            "favorites_dot": 0,
-            "wc_raw": 0, # change to actual raw wc counts
-            "wc_raw_dot": 0
-        }
+        current_stats.get(0, {})[title] = {}
 
     return current_stats
 
@@ -190,5 +179,5 @@ if __name__ == "__main__":
     day_num = 1
     df = pd.read_parquet("data/processed/current_data_1.parquet")
     current_json = create_json(df) # if you have not made a json yet
-    current_json,  = update_json(df, current_json, day_num)
+    current_json  = update_json(df, current_json, day_num)
     pprint(current_json, indent=4)
