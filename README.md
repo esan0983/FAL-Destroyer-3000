@@ -41,6 +41,7 @@ The following modifications were done:
 * Removed the "Award Winning" genre as that's never given to an anime mid-season, hence data leakage.
 
 ## Interesting Findings from EDA
+* More anime that follow the ETL criteria are usually released in Spring or Fall.
 * Higher score averages for the mid 90's and lower score averages for the mid 2010's.
 * Slightly higher score averages for shows under the restriction of "Violence & Profanity."
 * Slightly higher score averages for sequel shows.
@@ -54,7 +55,7 @@ The following modifications were done:
 * Performed semantic analysis on all synopses (not used in current NN)
 * Performed bucketing for genres and themes
 * Performed multi-layer binarization of genres, themes, and demographics
-* Decided that studios and producers have pretty small overlap and correlation. A learned embedding method was used.
+* Decided that studios and producers have pretty small overlap and correlation. A learned embedding method was used instead of removing producers (not used in current NN)
 
 ## Statistics
 
@@ -66,7 +67,7 @@ We will ignore the Award Winning genre because of their obvious high metrics. Si
 * All demographics had a statistically significant effect. Only the Kids demographic had a negative effect.
 
 ### Watching + Completed
-* Only three genres did not have a statistically significant effect. The Romance and Suspense genres had the biggest positive effect.
+* Only three genres did not have a statistically significant effect. The Romance and Suspense genres had the biggest positive effect. Comedy and Horro slightly negative coefficients.
 * More than half of the themes had a statistically significant effect. Love Polygon, Gore, and Isekai were three of the most postively impactful themes, while Pets had the biggest negative impact.
 * All demographics had a statistically significant effect. The Kids demographic had a really big negative effect.
 
@@ -76,20 +77,23 @@ We will ignore the Award Winning genre because of their obvious high metrics. Si
 * All demographics had a statistically significant effect. The Kids demographic had a really big positive effect.
 
 ### Overall Effects
-* Taking rating and the sequel boolean, the top 3 most positive statistically significant features on score (barring award winning) are: Iyashikei Theme, Shounen Demographic, and Gag Humor Theme. The top 3 most negative statistically significant features on score are: Horror Genre, Kids Demographic, and Ecchi Genre.
-* The top 3 most positive statistically significant features on wc (barring award winning) are: R17 Violence & Profanity Rating, Otaku Culture Theme, and Shounen Demographic. The top 3 most negative statistically significant features on wc are: Kids Demographic, Strategy Game Theme, and Samurai Theme.
-* The top 3 most positive statistically significant features on drop rate are: Kids Demographic, Samurai Theme, and Parody Theme. The top 3 most negative statistically significant features on drop rate are: Violence Rating, Iyashikei Theme, and Mahou Shouji Theme.
+* Taking rating into account, the top 3 most positive statistically significant features on score are: Iyashikei Theme, Shounen Demographic, and Gag Humor theme.
+* The top 3 most negative statistically significant features on score are: Horror Genre, Ecchi Genre, and Detective Theme.
+* The top 3 most positive statistically significant features on wc (barring award winning) are: R17 Violence & Profanity Rating, Otaku Culture Theme, and Shounen Demographic. 
+* The top 3 most negative statistically significant features on wc are: Kids Demographic, Strategy Game Theme, and Martial Arts Theme.
+* The top 3 most positive statistically significant features on drop rate are: Kids Demographic, Samurai Theme, and Parody Theme. 
+* The top 3 most negative statistically significant features on drop rate are: Violence Rating, Iyashikei Theme, and Mahou Shoujo Theme.
 
 ## Machine Learning
-A baseline model from the LightGBM package was used. Ignoring producers and studios for convenience, the model achieved a Gaussian LLNs in the range of 1.38-1.40, which is barely better than if the model was randomly sampling from a normal distribution.  
+A baseline model from the LightGBM package was used. Ignoring producers and studios for convenience, the model achieved a Gaussian LLNs in the range of 1.37-1.39, which is barely better than if the model was randomly sampling from a normal distribution.  
   
-A Fusion Network was created with one branch for each: producers and studios (8-dimensional embedding for each), and the rest of the data (82 dimensions). The model outputs a predicted mean and uncertainty (which will be used in the initial covariance matrix of the Kalman filter).  
+There were three Fusion Networks, the most successful of which was the simplest one, with only 81 dimensions and no
 
 The model achieved Gaussian LLNs in the range of 0.85-1.0, which is significantly better than the baseline model. Using the best model for each metric and using the heuristic function **[REDACTED]**, we have the final FAL roster of **[REDACTED]**.
 
 ## Forecasting
 
-For forecasting, I used Kalman filters. Since it's too mathematically complex to put all of it in this README, I will upload a PDF soon.
+For forecasting, I used Kalman filters. Since it's too mathematically complex to put all of it in this README, I will upload a PDF soon. The noise matrix has not been decided yet. JSONs generated by Claude were tested on notebook 6, and it produced viable results.
 
 ## Limitations
 * I was not able to do AniList GraphQL API because it's highly prone to mismatched titles.
@@ -97,13 +101,15 @@ For forecasting, I used Kalman filters. Since it's too mathematically complex to
 * I can only collect statistics on the day of data collection, not when the first 13 episodes were released. Hence, there will be a "slow burn" bias where old, popular shows will have inflated counts for most statistics.
 * The API can only track forum posts, not unique posters. We will assume that there is a linear correlation between forum posts and unique posters.
 
-## More Commit Notes
-* Statistics notebook is still somewhat broken and incomplete (prequel data messing up OLS)
-* Removed the "Award Winning" genre to avoid data leakage.
-* Fixed the order of preprocessing for adaptations and prequels, which decreased NLL loss.
-* Tested notebook 6 using synthetic data generated by Claude.
+## More Commit Notes (8/28)
+* Removed some columns that have a high VIF score so that feature importance charts are more reliable
+* Changed the model selection from "best model out of the five folds" (biased) to "retraining full data for the average epochs of five folds"
+* Added brief explanations to .py files
 
 ## Post-commit Plans
 * Update the first half of this README, especially EDA (in progress)
-* Redo statistics notebook
-* Set up code for visualizing Kalman filter results
+* Set up a cleaner data preprocessing methods in notebook 5
+* Update ML section of the README to include an overview of parameters and specific methodologies that improved training
+* DATASET OVERHAUL:
+    * Remove the notion of z-scoring for adaptation_score and adaptation_members
+    * For prequel_score and prequel_members, do the following: have a prequel_id collected from etl2.py and query for that specific ID. If it exists, copy all the z-scores.

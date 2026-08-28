@@ -1,5 +1,8 @@
+# api/etl.2py
+# Main file that performs all of the data collection
+# custom_bool allows you to switch between current anime and all previous anime
 # Partially assisted by Claude
-# Planning to integrate some of the data cleaning protocols, image extraction, prequel data, and adaptation collection for a final data pass
+
 
 import requests
 import json
@@ -66,15 +69,14 @@ for mt in target_media_types:
 # ---------------------------------------------------------------------------
 
 COLUMNS = [
-    'mal_id', 'title', 'source', 'episodes', 'synopsis', 'year',
-    'season', 'producers', 'genres', 'studios', 'demographics',
-    'themes', 'rating', 'sequel', 'favorites', 'score', 'wc',
-    'dropped', 'forum', 'members', 'thumbnail', 'doujinshi_score_z',
-    'doujinshi_members_z', 'manhua_score_z', 'manhua_members_z',
-    'novel_score_z', 'novel_members_z', 'manhwa_score_z',
-    'manhwa_members_z', 'light_novel_score_z', 'light_novel_members_z',
-    'manga_score_z', 'manga_members_z', 'one_shot_score_z',
-    'one_shot_members_z', 'prequel_score', 'prequel_members', 'prequel_type'
+    'mal_id', 'title', 'source', 'episodes', 'cohort', 'genres',  'demographics',
+    'themes', 'rating', 'sequel', 'prequel_id', 'favorites', 'score', 'wc',
+    'dropped', 'forum', 'doujinshi_score',
+    'doujinshi_members', 'manhua_score', 'manhua_members',
+    'novel_score', 'novel_members', 'manhwa_score',
+    'manhwa_members', 'light_novel_score', 'light_novel_members',
+    'manga_score', 'manga_members', 'one_shot_score',
+    'one_shot_members'
 ]
 
 def extract_single(id_num, custom_bool):
@@ -124,20 +126,15 @@ def extract_single(id_num, custom_bool):
     title = anime.get('title')
     source = anime.get('source')
     episodes = anime.get('episodes')
-    synopsis = anime.get('synopsis')
     year = anime.get('year')
     season = anime.get('season')
     rating = anime.get('rating')
     favorites = anime.get('favorites')
     score = anime.get('score')
-    members = anime.get('members') # FOR PREQUEL Z-SCORING PURPOSES
 
-    if synopsis is not None:
-        synopsis = re.sub(pattern, "", synopsis)
+    cohort = season + " " + str(year)
 
-    producers = [p['name'] for p in anime.get('producers', [])]
     genres = [g['name'] for g in anime.get('genres', [])]
-    studios = [s['name'] for s in anime.get('studios', [])]
     demographics = [d['name'] for d in anime.get('demographics', [])]
     themes = [t['name'] for t in anime.get('themes', [])]
 
@@ -145,14 +142,14 @@ def extract_single(id_num, custom_bool):
     # GET PREQUEL DATA
     # NOTE: PAY ATTENTION TO PREQUEL TYPE IN DATA CLEANING NOTEBOOK. WE ARE Z-SCORING BY COHORT, SO IT'S IMPORTANT TO
     # REMOVE NON-TV PREQUELS
-    sequel = None
+    sequel = False
     prequel_id = None
     get_prequel_success = False
     time.sleep(0.34)
     while not get_prequel_success:
         try:   
             sequel, prequel_id = get_prequel(id_num)
-            print(f"get_prequel successful for {id_num}!")
+            print(f"get_prequel successful for {id_num}! Prequel ID is {prequel_id}")
             get_prequel_success = True
         except Exception as e:
             if getattr(e, "response", None) is not None and e.response.status_code == 429:
@@ -160,34 +157,7 @@ def extract_single(id_num, custom_bool):
                 time.sleep(5)
             else:
                 break
-
-    time.sleep(0.34)          
-    
-    prequel_data = {}
-    if prequel_id is None:
-        prequel_data['prequel_score'] = None
-        prequel_data['prequel_members'] = None
-        prequel_data['prequel_type'] = None
-    else:
-        get_anime_prequel_success = False
-        prequel_json = {}
-        while not get_anime_prequel_success:
-            try:
-                prequel_json = get_anime(prequel_id)
-                print(f"get_anime for prequel successful for {prequel_id}!")
-                get_anime_prequel_success = True
-            except Exception as e:
-                if getattr(e, "response", None) is not None and e.response.status_code == 429:
-                    print(f"Rate limited on prequel ID {prequel_id}. Backing off 5s and retrying...")
-                    time.sleep(5)
-                else:
-                    break
-
-        prequel = prequel_json.get('data', {})
-
-        prequel_data['prequel_score'] = prequel.get('score')
-        prequel_data['prequel_members'] = prequel.get('members')
-        prequel_data['prequel_type'] = prequel.get('type')
+         
 
     # GET ADAPTATION INFORMATION FROM ADAPTATION_COLLECTION.PY
     # COLLECT ADAPTATIONS ACCEPTS A LIST OF IDS, SO WE TAKE ID_NUM TO BE A ONE ELEMENT ARRAY
@@ -200,14 +170,14 @@ def extract_single(id_num, custom_bool):
         col_key = mt.lower().replace(" ", "_").replace("-", "_")
 
         if score_list[mt][0] is not None:
-            adaptation_data[f"{col_key}_score_z"] = (score_list[mt][0] - score_means[mt]) / score_stdevs[mt]
+            adaptation_data[f"{col_key}_score"] = score_list[mt][0]
         else:
-            adaptation_data[f"{col_key}_score_z"] = None
+            adaptation_data[f"{col_key}_score"] = None
 
         if member_list[mt][0] is not None:
-            adaptation_data[f"{col_key}_members_z"] = (np.log1p(member_list[mt][0]) - member_means[mt]) / member_stdevs[mt]
+            adaptation_data[f"{col_key}_members"] = member_list[mt][0]
         else:
-            adaptation_data[f"{col_key}_members_z"] = None
+            adaptation_data[f"{col_key}_members"] = None
 
     time.sleep(0.34)
 
@@ -234,66 +204,56 @@ def extract_single(id_num, custom_bool):
         dropped = None
 
     # WILL FIX IN THE FUTURE, BUGGED FOR NOW
-    # get_episodes_success = False
-    # while not get_episodes_success:
-    #     try:
-    #         eps_json = get_anime_episodes(id_num)
-    #         print(f"get_anime_episodes successful for {id_num}!")
-    #         get_episodes_success = True
-    #     except Exception as e:
-    #         if getattr(e, "response", None) is not None and e.response.status_code == 429:
-    #             print(f"Rate limited on ID {id_num}. Backing off 5s and retrying...")
-    #             time.sleep(5)
-    #         else:
-    #             break
+    get_episodes_success = False
+    while not get_episodes_success:
+        try:
+            eps_json = get_anime_episodes(id_num)
+            print(f"get_anime_episodes successful for {id_num}!")
+            get_episodes_success = True
+        except Exception as e:
+            if getattr(e, "response", None) is not None and e.response.status_code == 429:
+                print(f"Rate limited on ID {id_num}. Backing off 5s and retrying...")
+                time.sleep(5)
+            else:
+                break
 
-    # if eps_json is not None:
-    #     forum = sum(
-    #         ep.get('replies', 0)
-    #         for ep in eps_json.get('data', [])
-    #         if ep.get('mal_id', 0) <= 13
-    #     )
-    # else:
-    #     forum = 0
-
-    forum = 0
+    forum = sum(
+        ep.get('replies', 0)
+        for ep in eps_json.get('data', [])
+        if ep.get('mal_id', 0) <= 13
+    )
 
     # IMAGE EXTRACTION
-    img_path = "data/images"
-    image_url = anime.get('images').get('jpg').get('large_image_url')
-    if image_url is not None:
-        file_name = str(id_num) + ".jpg"
-        download_image(image_url, img_path, file_name)
-        thumbnail = True
-    else:
-        thumbnail = False
+    # img_path = "data/images"
+    # image_url = anime.get('images').get('jpg').get('large_image_url')
+    # if image_url is not None:
+    #     file_name = str(id_num) + ".jpg"
+    #     download_image(image_url, img_path, file_name)
+    #     thumbnail = True
+    # else:
+    #     thumbnail = False
 
     row = {
         'mal_id': id_num,
         'title': title,
         'source': source,
         'episodes': episodes,
-        'synopsis': synopsis,
-        'year': year,
-        'season': season,
-        'producers': producers,
+        'cohort': cohort,
         'genres': genres,
-        'studios': studios,
         'demographics': demographics,
         'themes': themes,
         'rating': rating,
         'sequel': sequel,
+        'prequel_id' : prequel_id,
         'favorites': favorites,
         'score': score,
         'wc': wc,
         'dropped': dropped,
-        'forum': forum,
-        'members': members,
-        'thumbnail': thumbnail
+        'forum': forum
     }
 
     # CONCATENATE OTHER DICTS
-    final_row = row | adaptation_data | prequel_data
+    final_row = row | adaptation_data 
 
     return final_row
 
@@ -410,11 +370,11 @@ if __name__ == "__main__":
     custom_bool = False # CHANGE THIS FOR EITHER STANDARD COLLECTION OR FALL 2026 COLLECTION
     initial_data = pd.read_csv("data/raw/current_data.csv") if custom_bool else pd.read_csv("data/raw/anime_data.csv")
 
-    START_ID = 1  # resume point
+    START_ID = 30236  # resume point
     # Set MAX_ID if you want a hard ceiling; otherwise the miss-streak
     # threshold below will stop the crawl once it runs past real MAL IDs.
     MAX_ID = 75000
-    MAX_CONSECUTIVE_MISSES = 50
+    MAX_CONSECUTIVE_MISSES = 2500
     SAVE_EVERY = 25
 
     # FOR STANDARD COLLECTION

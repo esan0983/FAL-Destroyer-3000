@@ -1,3 +1,6 @@
+# utils/image_extraction.py
+# downloads every image of an anime in the dataframe to a directory
+
 import os
 import requests
 import pandas as pd

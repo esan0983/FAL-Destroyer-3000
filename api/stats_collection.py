@@ -1,3 +1,7 @@
+# api/stats_collection.py
+# Retrieves stats for every single entry under the MAL category "manga"
+# Used for z-scoring purposes
+
 from pathlib import Path
 from utils import base_url, get_manga
 import time

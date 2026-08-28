@@ -1,3 +1,6 @@
+# api/update_json.py
+# Used to initialize and update stats of current anime
+
 from pathlib import Path
 from pprint import pprint
 import json

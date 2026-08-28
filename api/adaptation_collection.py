@@ -1,4 +1,6 @@
-# DISCLAIMER: Mostly modified by Claude as I got lost and confused on code structure.
+# api/adaptation_collection.py
+# Retrieves source material metrics for each anime
+# Mostly modified by Claude as I got lost and confused on code structure.
 
 import os
 import time
