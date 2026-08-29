@@ -367,31 +367,31 @@ def run_custom(df, mal_ids, save_every, custom_bool):
 
 
 if __name__ == "__main__":
-    custom_bool = False # CHANGE THIS FOR EITHER STANDARD COLLECTION OR FALL 2026 COLLECTION
+    custom_bool = True # CHANGE THIS FOR EITHER STANDARD COLLECTION OR FALL 2026 COLLECTION
     initial_data = pd.read_csv("data/raw/current_data.csv") if custom_bool else pd.read_csv("data/raw/anime_data.csv")
 
-    START_ID = 30236  # resume point
+    START_ID = 63469  # resume point
     # Set MAX_ID if you want a hard ceiling; otherwise the miss-streak
     # threshold below will stop the crawl once it runs past real MAL IDs.
-    MAX_ID = 75000
+    MAX_ID = 70000
     MAX_CONSECUTIVE_MISSES = 2500
     SAVE_EVERY = 25
 
     # FOR STANDARD COLLECTION
-    run(
-        start_id=START_ID,
-        df=initial_data,
-        max_id=MAX_ID,
-        max_consecutive_misses=MAX_CONSECUTIVE_MISSES,
-        save_every=SAVE_EVERY,
-        custom_bool=custom_bool
-    )
-
-    # FOR FALL 2026 COLLECTION
-    # mal_ids = get_ids()
-    # run_custom(
+    # run(
+    #     start_id=START_ID,
     #     df=initial_data,
-    #     mal_ids=mal_ids,
+    #     max_id=MAX_ID,
+    #     max_consecutive_misses=MAX_CONSECUTIVE_MISSES,
     #     save_every=SAVE_EVERY,
     #     custom_bool=custom_bool
     # )
+
+    # FOR FALL 2026 COLLECTION
+    mal_ids = get_ids()
+    run_custom(
+        df=initial_data,
+        mal_ids=mal_ids,
+        save_every=SAVE_EVERY,
+        custom_bool=custom_bool
+    )
