@@ -13,8 +13,8 @@ from utils import parse_list_col
 def clean(df):
     df = df.drop_duplicates(subset=['mal_id'], keep='first')
 
-    lists = ['genres', 'demo', 'themes']
-    df[lists] = df[lists].applymap(parse_list_col)
+    lists = ['genres', 'demographics', 'themes']
+    df[lists] = df[lists].map(parse_list_col)
 
     print("DF NaNs:")
     print(df.isna().sum())
@@ -23,7 +23,7 @@ def clean(df):
     return df
 
 if __name__ == "__main__":
-    df = pd.read_parquet("data/processed/anime_data_1.csv")
+    df = pd.read_csv("data/raw/anime_data.csv")
     current_df = pd.read_csv("data/raw/current_data.csv")
 
     print("Cleaning pre-FAL DF...")
@@ -32,4 +32,8 @@ if __name__ == "__main__":
 
     print("Cleaning FAL DF...")
     current_df = clean(current_df)
-    print(df.describe(include='all'))
+    print(current_df.describe(include='all'))
+    
+    df.to_parquet("data/processed/anime_data_1.parquet", engine="pyarrow")
+    current_df.to_parquet("data/processed/current_data_1.parquet", engine="pyarrow")
+    print("DFs saved!")

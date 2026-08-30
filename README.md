@@ -74,22 +74,13 @@ For forecasting, I used Kalman filters. Since it's too mathematically complex to
 * The API can only track forum posts, not unique posters. We will assume that there is a linear correlation between forum posts and unique posters.
 
 ## More Commit Notes (8/29)
-* Third data pass commences!
-* DATASET OVERHAUL:
-    * Remove the notion of z-scoring for adaptation_score and adaptation_members
-    * For prequel_score and prequel_members, do the following: have a prequel_id collected from etl2.py and query for that specific ID. If it exists, copy all the z-scores.
-* ML CHANGES:
-    * Go back to MSE. Uncertainties aren't needed when you can get the covariance matrix from day 0 initializations for the Kalman filter
-    * Change baseline model to random forest
-    * Implement multi-output regression for both models
-    * New model will be XGBoost instead of a custom PyTorch NN
-* Completely revamped notebooks 1 and 3 to adapt to the new datasets
+* Third data pass has now reached the ML phase!
 * New folder with the main python files, still WIP
+* RF and XGBoost giving some promising results
 
 ## Post-commit Plans
 * Update the first half of this README, especially EDA (in progress)
-* Set up cleaner data preprocessing methods in notebook 5 (currently being handled in feature engineering)
 * Update ML section of the README to include an overview of parameters and specific methodologies that improved training
-* Migrate every notebook to a .py file except for statistics and EDA
-* Check how many metric-less anime there are and decide if imputation or dropping is the right choice
+* Migrate every notebook to a .py file except for statistics and EDA (time_series left)
+* Now use inference data
 
