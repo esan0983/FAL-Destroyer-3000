@@ -1,80 +1,66 @@
+# main/ml.py
+# Runs two machine learning algortihms: Random Forest and XGBoost. Most preprocessing protocols were already down in main/feature_engineering.py.
+
 import os
 os.environ["SCIPY_ARRAY_API"] = "1" 
 
 import sklearn
 sklearn.set_config(array_api_dispatch=True)
 
-import cupy as cp
 import pandas as pd
 import numpy as np
+from sklearn.base import (
+    BaseEstimator,
+    TransformerMixin,
+    ClassNamePrefixFeaturesOutMixin
+)
 from sklearn.model_selection import (
-    train_test_split,
-    PredefinedSplit,
-    RandomizedSearchCV
+    RandomizedSearchCV,
+    KFold
 )
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import (
     mean_squared_error, 
     r2_score
 )
-from sklearn.multioutput import MultiOutputRegressor
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
-from sklearn.impute import SimpleImputer
+from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 import xgboost as xgb
-from scipy.stats import (
-    uniform, 
-    randint,
-    loguniform
-)
 import matplotlib.pyplot as plt
 import copy
 from pprint import pprint
 import json
 from statsmodels.stats.outliers_influence import variance_inflation_factor
-import torch
 from xgboost import XGBRegressor
 
-mses = []
-r2s = []
+import torch
+from torch.utils.data import TensorDataset, DataLoader
+import torch.nn as nn
+from torch.optim import AdamW
 
-def safe_boolean_vif(df):
-    zero_variance_cols = df.columns[df.nunique() <= 1].tolist()
-    if zero_variance_cols:
-        print(f"Dropped zero-variance columns immediately: {zero_variance_cols}")
-        df = df.drop(columns=zero_variance_cols)
-        
-    X = df.copy()
-    X['constant'] = 1.0
-    
-    vif_data = pd.DataFrame()
-    vif_data["feature"] = X.columns
-    
-    vifs = []
-    for i in range(len(X.columns)):
-        try:
-            val = variance_inflation_factor(X.values, i)
-            vifs.append(np.inf if np.isinf(val) or np.isnan(val) else val)
-        except ZeroDivisionError:
-            vifs.append(np.inf)
-            
-    vif_data["VIF"] = vifs
-    
-    return vif_data[vif_data["feature"] != 'constant'].reset_index(drop=True)
+from utils import (
+    PytorchNN,
+    pytorch_train_processing,
+    pytorch_preprocessing
+)
 
+
+# REDO
 def random_forest(train_df, val_df, test_df, target):
-    metrics = ['score_z', 'wc_z', 'favorites_z', 'dropped_z', 'forum_z']
+    metrics = ['score', 'wc', 'favorites', 'dropped', 'forum']
     unwanted_metrics = [metric for metric in metrics if metric != target]
-    unwanted_genres = [f"genre_{metric}_mean" for metric in unwanted_metrics] + [f"genre_{metric}_min" for metric in unwanted_metrics] + [f"genre_{metric}_max" for metric in unwanted_metrics]
-    unwanted_themes = [f"theme_{metric}_mean" for metric in unwanted_metrics] + [f"theme_{metric}_min" for metric in unwanted_metrics] + [f"theme_{metric}_max" for metric in unwanted_metrics]
 
-    train_df = train_df.drop(columns=unwanted_metrics+unwanted_genres+unwanted_themes)
-    val_df = val_df.drop(columns=unwanted_metrics+unwanted_genres+unwanted_themes)
-    test_df = test_df.drop(columns=unwanted_metrics+unwanted_genres+unwanted_themes)
+    train_df = train_df.drop(columns=unwanted_metrics)
+    val_df = val_df.drop(columns=unwanted_metrics)
+    test_df = test_df.drop(columns=unwanted_metrics)
 
     full_train_df = pd.concat([train_df, val_df], axis=0).reset_index(drop=True)
-    full_train_df = pd.get_dummies(full_train_df, columns=['rating', 'source'])
-    test_df = pd.get_dummies(test_df, columns=['rating', 'source'])
+
+    combined = pd.concat([full_train_df, test_df], axis=0, ignore_index=True)
+    combined = pd.get_dummies(combined, columns=['rating', 'source', 'season', 'prequel_season'], dtype=int)
+
+    full_train_df = combined.iloc[:len(full_train_df)].copy()
+    test_df = combined.iloc[len(full_train_df):].copy()
 
     param_distributions = {
         'n_estimators':[150, 250, 400],
@@ -84,13 +70,17 @@ def random_forest(train_df, val_df, test_df, target):
         'min_samples_leaf': [2, 3, 4, 6]                     
     }
 
+    pipe = Pipeline([ # WILL ADD MORE IF NEEDED
+        ("model", RandomForestRegressor(random_state=42))
+    ])
+
     rf_random_search = RandomizedSearchCV(
-        estimator=RandomForestRegressor(random_state=42),
-        param_distributions=param_distributions,
+        estimator=pipe,
+        param_distributions={f"model__{k}": v for k, v in param_distributions.items()},
         n_iter=50,
         cv=5,
         scoring='neg_mean_squared_error',
-        verbose=1,
+        verbose=2,
         random_state=42,
         n_jobs=-1
     )
@@ -103,8 +93,10 @@ def random_forest(train_df, val_df, test_df, target):
     print("\nStarting hyperparameter tuning...")
     rf_random_search.fit(X_train, y_train)
 
+    best_params = rf_random_search.best_params_
     print("--- Tuning Complete ---")
-    print("Best Hyperparameters Found:", rf_random_search.best_params_)
+    print("Best Hyperparameters Found:", best_params)
+
     best_rf_model = rf_random_search.best_estimator_
     y_pred = best_rf_model.predict(X_test)
 
@@ -112,16 +104,13 @@ def random_forest(train_df, val_df, test_df, target):
     r2 = r2_score(y_test, y_pred)
 
     print(f"Target {target} -> MSE: {mse:.4f} | R² Score: {r2:.4f}")
-    mses.append(mse)
-    r2s.append(r2)
+    return mse, r2
 
 def xgboost(train_df, val_df, test_df, target):
-    metrics = ['score_z', 'wc_z', 'favorites_z', 'dropped_z', 'forum_z']
+    metrics = ['score', 'wc', 'favorites', 'dropped', 'forum']
     unwanted_metrics = [metric for metric in metrics if metric != target]
-    unwanted_genres = [f"genre_{metric}_mean" for metric in unwanted_metrics] + [f"genre_{metric}_min" for metric in unwanted_metrics] + [f"genre_{metric}_max" for metric in unwanted_metrics]
-    unwanted_themes = [f"theme_{metric}_mean" for metric in unwanted_metrics] + [f"theme_{metric}_min" for metric in unwanted_metrics] + [f"theme_{metric}_max" for metric in unwanted_metrics]
 
-    drop_cols = unwanted_metrics + unwanted_genres + unwanted_themes
+    drop_cols = unwanted_metrics
     train_df = train_df.drop(columns=drop_cols)
     val_df = val_df.drop(columns=drop_cols)
     test_df = test_df.drop(columns=drop_cols)
@@ -138,7 +127,9 @@ def xgboost(train_df, val_df, test_df, target):
     y_search = pd.concat([y_train, y_val], axis=0)
 
     # Contatenation flattens categories to strings
-    for col in ['source', 'rating']:
+    # Note that this is not as robust since there could be something in the test data that's not in training data.
+    # For now, this works as is. In the future, try to make this more robust.
+    for col in ['source', 'rating', 'season', 'prequel_season']:
         if col in X_search.columns:
             X_search[col] = X_search[col].astype('category')
         if col in X_train.columns:
@@ -147,6 +138,15 @@ def xgboost(train_df, val_df, test_df, target):
             X_val[col] = X_val[col].astype('category')
         if col in X_test.columns:
             X_test[col] = X_test[col].astype('category')
+
+    pipe = Pipeline([ # WILL ADD MORE IF NEEDED
+        ("model", XGBRegressor(
+            device="cuda",
+            random_state=42,
+            eval_metric='rmse',
+            enable_categorical=True 
+        ))
+    ])
 
     param_distributions = {
         'n_estimators':[500, 1000, 1500, 2000, 3000],
@@ -162,24 +162,19 @@ def xgboost(train_df, val_df, test_df, target):
     }
 
     xgb_random_search = RandomizedSearchCV(
-        estimator=XGBRegressor(
-            device="cuda",
-            random_state=42,
-            eval_metric='rmse',
-            enable_categorical=True 
-        ),
-        param_distributions=param_distributions,
+        estimator=pipe,
+        param_distributions={f"model__{k}": v for k, v in param_distributions.items()},
         n_iter=50,
         cv=5,
         scoring='neg_mean_squared_error',
-        verbose=2,
+        verbose=3,
         random_state=42,
         n_jobs=1
     )
 
     xgb_random_search.fit(X_search, y_search)
 
-    best_params = xgb_random_search.best_params_
+    best_params = {k.split("__")[1]: v for k, v in xgb_random_search.best_params_.items()}
     print("\n--- Tuning Complete ---")
     print("Best Hyperparameters Found:", best_params)
 
@@ -201,13 +196,105 @@ def xgboost(train_df, val_df, test_df, target):
 
     y_pred = best_xgb_model.predict(X_test)
 
-    mse_per_target = mean_squared_error(y_test, y_pred)
-    r2_per_target = r2_score(y_test, y_pred)
+    mse = mean_squared_error(y_test, y_pred)
+    r2 = r2_score(y_test, y_pred)
 
-    print(f"Target {target} -> MSE: {mse_per_target:.4f} | R² Score: {r2_per_target:.4f}")
-    mses.append(mse)
-    r2s.append(r2)
-    
+    print(f"Target {target} -> MSE: {mse:.4f} | R² Score: {r2:.4f}")
+
+    return mse, r2
+
+def pytorch_nn(train_df, val_df, test_df, target):
+    # NOTE: I WILL ONLY PASS AVERAGE VALIDATION LOSS FOR NOW, BUT THE PLAN IS TO RETRAIN THE ENTIRE MODEL ON THE AVERAGE
+    # NUMBER OF EPOCHS AND THEN TEST IT
+    metrics = ['score', 'wc', 'favorites', 'dropped', 'forum']
+    unwanted_metrics = [metric for metric in metrics if metric != target]
+
+    train_df = train_df.drop(columns=unwanted_metrics)
+    val_df = val_df.drop(columns=unwanted_metrics)
+    test_df = test_df.drop(columns=unwanted_metrics)
+
+    train_df, val_df, test_df = pytorch_preprocessing(train_df, val_df, test_df)
+    train_combined = pd.concat([train_df, val_df], axis=0)
+
+    X_train = train_combined.drop(columns=[target])
+    y_train = train_combined[target].to_numpy()
+    X_test = test_df.drop(columns=[target])
+    y_test = test_df[target].to_numpy()
+
+    num_epochs = 300
+    kfold = KFold(n_splits=5, shuffle=True, random_state=42)
+    batch_size = 32
+    cv_scores = np.zeros(5)
+
+    for fold, (train_ids, val_ids) in enumerate(kfold.split(X_train)):
+        print(f"FOLD {fold + 1}")
+
+        X_cv_train = X_train.iloc[train_ids].copy()
+        X_cv_val = X_train.iloc[val_ids].copy()
+
+        y_cv_train = y_train[train_ids]
+        y_cv_val = y_train[val_ids]
+
+        X_cv_train, X_cv_val = pytorch_train_processing(X_cv_train, X_cv_val)
+
+        X_cv_train = torch.tensor(X_cv_train.to_numpy(), dtype=torch.float32)
+        X_cv_val = torch.tensor(X_cv_val.to_numpy(), dtype=torch.float32)
+        y_cv_train = torch.tensor(y_cv_train, dtype=torch.float32).unsqueeze(1)
+        y_cv_val = torch.tensor(y_cv_val, dtype=torch.float32).unsqueeze(1)
+
+        train_dataset = TensorDataset(X_cv_train, y_cv_train)
+        val_dataset = TensorDataset(X_cv_val, y_cv_val)
+
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+        val_loader = DataLoader(val_dataset, batch_size=batch_size)
+
+        model = PytorchNN(X_cv_train.shape[1])
+        criterion = nn.MSELoss()
+        optimizer = AdamW(
+            model.parameters(),
+            lr=1e-4,
+            weight_decay=1e-2
+        )
+
+        best_val_loss = float('inf')
+        best_model_weights = None
+        patience_counter = 0
+        patience = 20
+
+        for epoch in range(num_epochs):
+            model.train()
+            for inputs, targets in train_loader:
+                targets = targets
+                optimizer.zero_grad()
+                outputs = model(inputs)
+                loss = criterion(outputs, targets)
+                loss.backward()
+                optimizer.step()
+
+            model.eval()
+            val_loss = 0.0
+            with torch.no_grad():
+                for inputs, targets in val_loader:
+                    outputs = model(inputs)
+                    val_loss += criterion(outputs, targets).item() * inputs.size(0)
+
+            val_loss /= len(val_loader.dataset)
+
+            if val_loss <= best_val_loss:
+                best_val_loss = val_loss
+                best_model_weights = copy.deepcopy(model.state_dict())
+                print(f"Epoch {epoch} validation loss: {val_loss}")
+                patience_counter = 0
+            else:
+                patience_counter += 1
+                if patience_counter >= patience:
+                    print(f"Early stopping triggered at epoch {epoch}")
+                    print(f"Best validation loss: {best_val_loss}")
+                    cv_scores[fold] = best_val_loss
+                    break
+
+    return np.mean(cv_scores)
+
 
 if __name__ == "__main__":
     SEED = 42
@@ -222,12 +309,28 @@ if __name__ == "__main__":
     test_df = pd.read_parquet("data/ml_data/test_df.parquet")
     inference_df = pd.read_parquet("data/ml_data/inference_df.parquet")
 
-    metrics = ['score_z', 'wc_z', 'favorites_z', 'dropped_z', 'forum_z']
-    for metric in metrics:
-        random_forest(train_df, val_df, test_df, metric)
-        xgboost(train_df, val_df, test_df, metric)
+    rf_mses = []
+    rf_r2s = []
 
-    print("MSEs:")
-    print(mses)
-    print("R2s:")
-    print(r2s)
+    xgb_mses = []
+    xgb_r2s = []
+
+    pt_mses = []
+
+    metrics = ['score', 'wc', 'favorites', 'dropped', 'forum']
+    for metric in metrics:
+        mse, r2 = random_forest(train_df, val_df, test_df, metric)
+        rf_mses.append(mse)
+
+        mse, r2 = xgboost(train_df, val_df, test_df, metric)
+        xgb_mses.append(mse)
+
+        mse = pytorch_nn(train_df, val_df, test_df, metric)
+        pt_mses.append(mse)
+
+    print("Random Forest MSEs:")
+    print(rf_mses)
+    print("XGBoost MSEs:")
+    print(xgb_mses)
+    print("PyTorch MSEs:")
+    print(pt_mses)
