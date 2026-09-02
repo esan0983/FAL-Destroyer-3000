@@ -5,6 +5,8 @@ import pandas as pd
 import ast
 import numpy as np
 
+# Turns collected string data into lists
+# Useful for genres, themes, and demographics
 def parse_list_col(x):
   if isinstance(x, (list, tuple, np.ndarray)):
     return list(x)

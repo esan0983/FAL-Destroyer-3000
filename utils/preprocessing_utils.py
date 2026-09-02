@@ -1,9 +1,14 @@
+# utils/preprocessing_utils.py
+# Functions used in the feature engineering phase.
+
 import pandas as pd
 import numpy as np
 
 from sklearn.decomposition import TruncatedSVD
 from sklearn.preprocessing import MultiLabelBinarizer
 
+# Not used
+# Performs target encoding for genres
 def encode_multi_label_genre(df, genre_map, global_mean, metric):
     """Maps row lists to aggregated statistics of their individual genre targets."""
     means, mins, maxs = [], [], []
@@ -27,6 +32,8 @@ def encode_multi_label_genre(df, genre_map, global_mean, metric):
         f'genre_{metric}_max': maxs
     }, index=df.index)
 
+# Not used
+# Performs target encoding for themes
 def encode_multi_label_theme(df, theme_map, global_mean, metric):
     """Maps row lists to aggregated statistics of their individual genre targets."""
     means, mins, maxs = [], [], []
@@ -50,6 +57,7 @@ def encode_multi_label_theme(df, theme_map, global_mean, metric):
         f'theme_{metric}_max': maxs
     }, index=df.index)
 
+# Performs multi-label binarization + truncated SVD to encode genres without bloating dimension count
 def genre_mlb_svd(train_df, val_df, test_df, inference_df):
     mlb = MultiLabelBinarizer()
     train_bin = mlb.fit_transform(train_df['genres'])
@@ -71,6 +79,7 @@ def genre_mlb_svd(train_df, val_df, test_df, inference_df):
 
     return train_svd_df, val_svd_df, test_svd_df, inference_svd_df
 
+# Performs multi-label binarization + truncated SVD to encode themes without bloating dimension count
 def theme_mlb_svd(train_df, val_df, test_df, inference_df):
     mlb = MultiLabelBinarizer()
     train_bin = mlb.fit_transform(train_df['themes'])
@@ -92,6 +101,7 @@ def theme_mlb_svd(train_df, val_df, test_df, inference_df):
 
     return train_svd_df, val_svd_df, test_svd_df, inference_svd_df
 
+# Performs multi-label binarization on demographics
 def demographic_mlb(train_df, val_df, test_df, inference_df):
     mlb = MultiLabelBinarizer()
     train_bin = mlb.fit_transform(train_df['demographics'])

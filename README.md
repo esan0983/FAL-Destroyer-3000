@@ -74,17 +74,15 @@ Since the forum variable can not be directly converted to points, we will still 
 * I can only collect statistics on the day of data collection, not when the first 13 episodes were released. Hence, there will be a "slow burn" bias where old, popular shows will have inflated counts for most statistics.
 * The API can only track forum posts, not unique posters. We will assume that there is a linear correlation between forum posts and unique posters.
 
-## More Commit Notes (8/30)
-* Third data pass has now reached the ML phase!
-* Dropped the notion of a cohort z-score since I will use the year as an input as well
-* Custom preprocessing and mid-training processing functions added in an ml_utils file to avoid data leakage
-* Currently testing three ML algorithms: Random Forest, XGBoost, and a custom PyTorch Neural Network
-* Added new error bars on the EDA section since the sample sizes vary wildly
+## More Commit Notes (9/1)
+* XGBoost slightly outperforms Random Forest and significantly outperforms PyTorch (wc metric had a scary R^2 of 0.86)
+* Turned bar charts into boxplots to capture distribution in EDA notebook
+* Predicted metrics from inference data and used a heuristic formula to predict roster (a new roster emerges!)
+* Constructed feature importance charts (both individual and grouped)
 
 ## Post-commit Plans
-* Update the first half of this README, especially EDA (in progress)
+* Update EDA part of the README
+* Update feature engineering section of the README with new steps and justifications
 * Update ML section of the README to include an overview of parameters and specific methodologies that improved training
-* Migrate every notebook to a .py file except for statistics and EDA (time_series left)
-* Use inference data on your networks
-* Work on EDA and Statistics notebooks (mostly done with EDA, I will revisit Statistics soon)
-
+* Migrate every notebook to a .py file except for statistics and EDA (time_series left, specifically the graphing)
+* Work on Statistics notebook

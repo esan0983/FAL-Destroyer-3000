@@ -15,7 +15,7 @@ from utils import (
     demographic_mlb
 )
 
-def pre_split(df, init_rows):
+def pre_split(df):
     df['drop_rate'] = df['dropped'] / df['wc']
 
     # to handle skewness
@@ -58,13 +58,13 @@ def pre_split(df, init_rows):
 
     df['prequel_season'] = df['prequel_season'].astype('category')
 
-    df = df.drop(columns=['episodes', 'mal_id'])
+    df = df.drop(columns=['episodes', 'mal_id', 'sequel'])
 
     return df
 
-def splitting(df):
-    inference_df = df.tail(72)
-    xgb_df = df.head(3278)
+def splitting(df, init_rows):
+    inference_df = df.tail(len(df) - init_rows)
+    xgb_df = df.head(init_rows)
 
     train_val_df, test_df = train_test_split(xgb_df, test_size=0.15, random_state=42)
     train_df, val_df = train_test_split(train_val_df, test_size=0.1765, random_state=42)
@@ -76,7 +76,6 @@ def splitting(df):
     return train_df, val_df, test_df, inference_df
 
 def post_split(train_df, val_df, test_df, inference_df):
-
     # GENRES
     temp_train, temp_val, temp_test, temp_inf = genre_mlb_svd(
         train_df=train_df,
@@ -147,7 +146,7 @@ if __name__ == "__main__":
     print("Saving stats_df...")
     stats_df.to_parquet("data/processed/stats_df.parquet", engine="pyarrow")
 
-    train_df, val_df, test_df, inference_df = splitting(df)
+    train_df, val_df, test_df, inference_df = splitting(df, init_rows)
     train_df, val_df, test_df, inference_df = post_split(train_df, val_df, test_df, inference_df)
 
     print("Saving ML DFs...")
