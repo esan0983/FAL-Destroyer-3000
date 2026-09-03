@@ -39,28 +39,35 @@ The following modifications were done:
 * Parses through multi-valued columns such as "genre" and turns them into lists
 
 ## Interesting Findings from EDA
-WIP due to the 3rd data pass
+WIP due to the 4th data pass
 
 ## Feature Engineering
-The following was done in sequential order:
 * Added a "drop rate" feature (dropped / wc) for statistical analysis
-* Performed log1p on wc, favorites, forum, and dropped
+* Performed log1p on wc, favorites, forum, and dropped to make them more normally distributed
 * For both adaptation score and adaptation member count, the highest number out of all adaptation media types was chosen. If it did not have a recorded adaptation, we will leave it as NaN
 * Performed log1p on adaptation members
-* Used prequel_id (if it exists) to query prequel scores. If prequel_id does not exist, then prequel metrics are left with a NaN value
+* Split cohort into season and year
+* Used prequel_id (if it exists) to query prequel scores. If prequel_id does not exist, then prequel metrics are left with a NaN value. Dropped prequel_id afterwards since it will not be used
 * Removed the "Award Winning" genre since that label is not assigned before anime release
 * Turned string features into category types for XGBoost compatibility
+* Dropped episodes (mostly known only after the anime is released), mal_id (not useful), and sequel (XGBoost does not need indicator variables)
+* Saved the dataframe for statistical analysis
 * Split into training, validation, testing, and inference dataframes to avoid data train-test leakage (not relevant for now but will keep just in case)
-* Used multi-label binarization + truncated SVD for genres and themes, and only multi-label binarization for demographics
+* Used multi-label binarization + truncated SVD for genres, themes, studios, and producers, and only multi-label binarization for demographics
 
 ## Statistics
-WIP due to the 3rd data pass.
+WIP due to the 4th data pass.  
+
+We will mainly be focusing on three metrics: score, wc (watching + completed) and drop rate (dropped / wc).
+
+### Source Material
+* Source material score vs. anime score yielded $R^2 = 0.497$.
+* Source material member count vs. anime wc (log-log) yielded $R^2 = 0.580$.
+* Prequel score vs. anime score yielded $R^2 = 0.804$.
+* Preuqel wc vs. anime wc yielded (log-log) $R^2 = 0.954$
 
 ## Machine Learning
-WIP due to the 3rd data pass. The plan:
-* Random Forest as a baseline model
-* XGBoost as a potential inference model
-* Custom PyTorch neural network as another potential inference model
+Two models will be tested for the fourth data pass: Random Forest and XGBoost. Both will undergo hyperparameter tuning via Optuna.
 
 ## Forecasting
 
@@ -73,16 +80,22 @@ Since the forum variable can not be directly converted to points, we will still 
 * It's possible for an anime to have two or more source materials of the same type (Manga, LN, etc). The code adaptation_collection.py only collects statistics from the lowest MAL ID instead of collecting all of them. This is done to make sure that lists are aligned and to save API calls as I have rate limits for Tenrai API. This is a justifiable approximation as this is an extreme minority edge case.
 * I can only collect statistics on the day of data collection, not when the first 13 episodes were released. Hence, there will be a "slow burn" bias where old, popular shows will have inflated counts for most statistics.
 * The API can only track forum posts, not unique posters. We will assume that there is a linear correlation between forum posts and unique posters.
+* Some chunks of data are recorded around 24 hours apart due to rate limits, which slightly poisons our machine learning process.
 
-## More Commit Notes (9/1)
-* XGBoost slightly outperforms Random Forest and significantly outperforms PyTorch (wc metric had a scary R^2 of 0.86)
-* Turned bar charts into boxplots to capture distribution in EDA notebook
-* Predicted metrics from inference data and used a heuristic formula to predict roster (a new roster emerges!)
-* Constructed feature importance charts (both individual and grouped)
+## More Commit Notes (9/2)
+* Fourth data pass (it's minor this time) to include studios and producers
+* Implemented optuna for both models to optimize hyperparameter tuning
+* Fixed the errors in the Statistics and it now adjusts to the recent data pass, just need motivation to actually work on it further
+* Finished migrating time_series.ipynb into forecasting.py and forecast_graph.py
+* Generated a streamlit dashboard
 
 ## Post-commit Plans
-* Update EDA part of the README
-* Update feature engineering section of the README with new steps and justifications
 * Update ML section of the README to include an overview of parameters and specific methodologies that improved training
-* Migrate every notebook to a .py file except for statistics and EDA (time_series left, specifically the graphing)
-* Work on Statistics notebook
+* Work on Statistics notebook further
+* Decide on noise and observation matrices for the Kalman filter
+* Explain how to translate raw data into proper values for measured_scores.json: update_json.py should already spit out the z-scores, and all you have to do is to feed it into the heuristic formula via current_criteria.json
+* Related to the bullet point above, once you're done with the machine learning phase (I'll give a soft deadline of September 9), write a detailed daily plan on how you're gonna record data and feed it into forecasting.py
+* Finish the Kalman filter overleaf doc
+* Before doing stuff to the dashboard, draft out what "story" you might wanna tell to non-technicals first
+* Update filters on streamlit dashboard
+* Add plots to streamlit dashboard

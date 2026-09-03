@@ -25,48 +25,13 @@ from api.adaptation_collection import (
     collect_adaptations, 
     target_media_types 
 )   
-from utils import download_image
-
-pattern = r"\s*[\(\[].*?[\)\]]\s*$"
-
-# ---------------------------------------------------------------------------
-# Source material initialization (takes mean and stdev of source material score and log1p'd member count)
-# ---------------------------------------------------------------------------
-init_dir = Path("data/stats")
-init_score = init_dir / "scores.json"
-init_members = init_dir / "members.json"
-
-try:
-    with open(init_score, "r", encoding="utf-8") as file:
-        score_data = json.load(file)
-except FileNotFoundError:
-    print(f"Error: The file at {init_score} was not found.")
-except json.JSONDecodeError:
-    print("Error: The file contains invalid JSON.")
-
-try:
-    with open(init_members, "r", encoding="utf-8") as file:
-        member_data  = json.load(file)
-except FileNotFoundError:
-    print(f"Error: The file at {init_members} was not found.")
-except json.JSONDecodeError:
-    print("Error: The file contains invalid JSON.")
-
-score_means = {}
-score_stdevs = {}
-member_means = {}
-member_stdevs = {}
-
-for mt in target_media_types:
-    score_means[mt] = np.mean(score_data[mt])
-    score_stdevs[mt] = np.std(score_data[mt])
-    member_means[mt] = np.mean(np.log1p(member_data[mt]))
-    member_stdevs[mt] = np.std(np.log1p(member_data[mt]))
 
 
-# ---------------------------------------------------------------------------
-# Per-ID extraction (replaces the page-based retrieve_data/extract_data logic)
-# ---------------------------------------------------------------------------
+
+
+
+
+
 
 COLUMNS = [
     'mal_id', 'title', 'source', 'episodes', 'cohort', 'genres',  'demographics',
@@ -76,15 +41,10 @@ COLUMNS = [
     'novel_score', 'novel_members', 'manhwa_score',
     'manhwa_members', 'light_novel_score', 'light_novel_members',
     'manga_score', 'manga_members', 'one_shot_score',
-    'one_shot_members'
+    'one_shot_members', 'studios', 'producers'
 ]
 
 def extract_single(id_num, custom_bool):
-    """
-    Pull every field needed for one MAL ID, mirroring the field set etl.py
-    collected per page-row. Returns a dict matching COLUMNS, or None if the
-    anime doesn't exist / isn't a usable row.
-    """
     anime_json = None
     get_anime_success = False
     time.sleep(0.34)
@@ -137,6 +97,8 @@ def extract_single(id_num, custom_bool):
     genres = [g['name'] for g in anime.get('genres', [])]
     demographics = [d['name'] for d in anime.get('demographics', [])]
     themes = [t['name'] for t in anime.get('themes', [])]
+    studios = [d['name'] for d in anime.get('studios', [])]
+    producers = [t['name'] for t in anime.get('producers', [])]
 
 
     # GET PREQUEL DATA
@@ -249,7 +211,9 @@ def extract_single(id_num, custom_bool):
         'score': score,
         'wc': wc,
         'dropped': dropped,
-        'forum': forum
+        'forum': forum,
+        'studios': studios,
+        'producers': producers
     }
 
     # CONCATENATE OTHER DICTS
@@ -367,10 +331,10 @@ def run_custom(df, mal_ids, save_every, custom_bool):
 
 
 if __name__ == "__main__":
-    custom_bool = True # CHANGE THIS FOR EITHER STANDARD COLLECTION OR FALL 2026 COLLECTION
+    custom_bool = False # CHANGE THIS FOR EITHER STANDARD COLLECTION OR FALL 2026 COLLECTION
     initial_data = pd.read_csv("data/raw/current_data.csv") if custom_bool else pd.read_csv("data/raw/anime_data.csv")
 
-    START_ID = 63469  # resume point
+    START_ID = 30211  # resume point
     # Set MAX_ID if you want a hard ceiling; otherwise the miss-streak
     # threshold below will stop the crawl once it runs past real MAL IDs.
     MAX_ID = 70000
@@ -378,20 +342,20 @@ if __name__ == "__main__":
     SAVE_EVERY = 25
 
     # FOR STANDARD COLLECTION
-    # run(
-    #     start_id=START_ID,
-    #     df=initial_data,
-    #     max_id=MAX_ID,
-    #     max_consecutive_misses=MAX_CONSECUTIVE_MISSES,
-    #     save_every=SAVE_EVERY,
-    #     custom_bool=custom_bool
-    # )
-
-    # FOR FALL 2026 COLLECTION
-    mal_ids = get_ids()
-    run_custom(
+    run(
+        start_id=START_ID,
         df=initial_data,
-        mal_ids=mal_ids,
+        max_id=MAX_ID,
+        max_consecutive_misses=MAX_CONSECUTIVE_MISSES,
         save_every=SAVE_EVERY,
         custom_bool=custom_bool
     )
+
+    # FOR FALL 2026 COLLECTION
+    # mal_ids = get_ids()
+    # run_custom(
+    #     df=initial_data,
+    #     mal_ids=mal_ids,
+    #     save_every=SAVE_EVERY,
+    #     custom_bool=custom_bool
+    # )

@@ -17,7 +17,8 @@ from sklearn.base import (
 )
 from sklearn.model_selection import (
     RandomizedSearchCV,
-    KFold
+    KFold,
+    cross_val_score
 )
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import (
@@ -45,6 +46,11 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 from pprint import pprint
 
 import random
+
+import optuna
+
+import warnings
+warnings.filterwarnings("ignore", message=".*Falling back to prediction using DMatrix.*")
 
 from utils import (
     PytorchNN,
@@ -138,47 +144,90 @@ def random_forest(train_df, val_df, test_df, target, seed):
     full_train_df = combined.iloc[:len(full_train_df)].copy()
     test_df = combined.iloc[len(full_train_df):].copy()
 
-    param_distributions = {
-        'n_estimators':[150, 250, 400],
-        'max_features': ['sqrt', 0.2, 0.3, 0.4],            
-        'max_depth': [10, 15, 20, 25, None],                 
-        'min_samples_split':[4, 6, 8],                  
-        'min_samples_leaf': [2, 3, 4, 6]                     
-    }
-
-    pipe = Pipeline([ # WILL ADD MORE IF NEEDED
-        ("model", RandomForestRegressor(random_state=seed))
-    ])
-
-    rf_random_search = RandomizedSearchCV(
-        estimator=pipe,
-        param_distributions={f"model__{k}": v for k, v in param_distributions.items()},
-        n_iter=50,
-        cv=5,
-        scoring='neg_mean_squared_error',
-        verbose=2,
-        random_state=seed,
-        n_jobs=-1
-    )
-
     X_train = full_train_df.drop(columns=[target])
     X_test = test_df.drop(columns=[target])
     y_train = full_train_df[target]
     y_test = test_df[target]
 
-    print("\nStarting hyperparameter tuning...")
-    rf_random_search.fit(X_train, y_train)
+    def objective(trial):
+        params = {
+            'n_estimators': trial.suggest_int('n_estimators', 150, 750),
+            'max_features': trial.suggest_float('max_features', 0.1, 0.5),            
+            'max_depth': trial.suggest_int('max_depth', 5, 25),                 
+            'min_samples_split': trial.suggest_int('min_samples_split', 4, 8),                  
+            'min_samples_leaf': trial.suggest_int('min_samples_leaf', 2, 6),
+            'random_state': seed,
+            'n_jobs': -1              
+        } 
 
-    best_params = rf_random_search.best_params_
-    print("--- Tuning Complete ---")
-    print("Best Hyperparameters Found:", best_params)
+        rf_model = RandomForestRegressor(**params)
 
-    best_rf_model = rf_random_search.best_estimator_
-    y_pred = best_rf_model.predict(X_test)
+        score = cross_val_score(rf_model, X_train, y_train, cv=5, scoring="neg_mean_squared_error").mean()
+
+        return -score
+
+    study = optuna.create_study(direction="minimize")
+    study.optimize(objective, n_trials=50)
+
+    best_params = study.best_params
+
+    print("Best MSE:", study.best_value)
+    print("Best Hyperparameters:", best_params)
+
+    final_train_df = combined.iloc[:len(train_df)].copy()
+    final_val_df = combined.iloc[len(train_df):len(train_df)+len(val_df)].copy()
+
+    X_train_final = final_train_df.drop(columns=[target])
+    y_train_final = final_train_df[target]
+    X_val_final = final_val_df.drop(columns=[target])
+    y_val_final = final_val_df[target]
+
+    clean_params = {k.replace("model__", ""): v for k, v in best_params.items()}
+    max_trees = clean_params.pop("n_estimators", 750) 
+
+    # Initialize model with 0 trees and warm_start
+    best_rf_model = RandomForestRegressor(
+        **clean_params,
+        n_estimators=0,
+        warm_start=True,
+        random_state=seed,
+        n_jobs=-1
+    )
+
+    patience = 10
+    best_val_mse = float('inf')
+    no_improvement_count = 0
+    step_size = 5 
+    final_model_checkpoint = None
+
+    print("Training final model with early stopping...")
+    for n_trees in range(step_size, max_trees + 1, step_size):
+        best_rf_model.n_estimators = n_trees
+        best_rf_model.fit(X_train_final, y_train_final)
+        
+        val_preds = best_rf_model.predict(X_val_final)
+        val_mse = mean_squared_error(y_val_final, val_preds)
+        
+        if val_mse < best_val_mse:
+            best_val_mse = val_mse
+            no_improvement_count = 0
+            final_model_checkpoint = copy.deepcopy(best_rf_model)
+        else:
+            no_improvement_count += 1
+            
+        if no_improvement_count >= patience:
+            print(f"Early stopping triggered at {n_trees} trees.")
+            break
+    else:
+        print(f"Completed training up to maximum limit of {max_trees} trees.")
+        if final_model_checkpoint is None:
+            final_model_checkpoint = best_rf_model
+
+    y_pred = final_model_checkpoint.predict(X_test)
 
     mse = mean_squared_error(y_test, y_pred)
 
-    print(f"Target {target} -> MSE: {mse:.4f}")
+    print(f"Target {target} -> Test MSE: {mse:.4f}")
     return mse
 
 # Uses inference data and a specified metric to load the XGBoost model and save predictions as JSON
@@ -263,51 +312,64 @@ def xgboost(train_df, val_df, test_df, target, seed):
         if col in X_test.columns:
             X_test[col] = X_test[col].astype('category')
 
-    pipe = Pipeline([ # WILL ADD MORE IF NEEDED
-        ("model", XGBRegressor(
-            device="cuda",
-            random_state=seed,
-            eval_metric='rmse',
-            enable_categorical=True 
-        ))
-    ])
+    def objective(trial):
+        params = {
+            'n_estimators': trial.suggest_int("n_estimators", 500, 3000),
+            'learning_rate': trial.suggest_float("learning_rate", 0.01, 0.2, log=True),
+            'max_depth': trial.suggest_int("max_depth", 3, 10),
+            'min_child_weight': trial.suggest_int("min_child_weight", 1, 10),
+            'subsample': trial.suggest_float("subsample", 0.6, 1.0),
+            'colsample_bytree': trial.suggest_float("colsample_bytree", 0.5, 1.0),
+            'gamma': trial.suggest_float("gamma", 0, 1.0),
+            'reg_alpha': trial.suggest_float("reg_alpha", 0, 10),
+            'reg_lambda': trial.suggest_float("reg_lambda", 0.1, 20),
+            'tree_method': "hist",
+            'eval_metric': "rmse",
+            'device': "cuda",
+            'enable_categorical': True,
+            'random_state': seed
+        }
 
-    param_distributions = {
-        'n_estimators':[1000, 1500, 2000, 3000],
-        'learning_rate': [0.01, 0.02, 0.05, 0.1],
-        'max_depth': [3, 4, 5, 6, 8],
-        'min_child_weight': [1, 3, 5, 7, 10],
-        'subsample': [0.6, 0.7, 0.8, 0.9, 1.0],
-        'colsample_bytree': [0.5, 0.7, 0.8, 0.9, 1.0],
-        'gamma': [0, 0.01, 0.1, 0.5, 1],
-        'reg_alpha': [0, 0.01, 0.1, 1, 10],
-        'reg_lambda': [0.1, 1, 5, 10, 20],
-        'tree_method': ['hist'],
-    }
+        kf = KFold(n_splits=5, shuffle=True, random_state=seed)
+        fold_scores = []
 
-    xgb_random_search = RandomizedSearchCV(
-        estimator=pipe,
-        param_distributions={f"model__{k}": v for k, v in param_distributions.items()},
-        n_iter=50,
-        cv=5,
-        scoring='neg_mean_squared_error',
-        verbose=2,
-        random_state=seed,
-        n_jobs=1
-    )
+        for fold, (train_idx, val_idx) in enumerate(kf.split(X_search, y_search)):
+            X_search_train, X_search_val = X_search.iloc[train_idx], X_search.iloc[val_idx]
+            y_search_train, y_search_val = y_search.iloc[train_idx], y_search.iloc[val_idx]
 
-    xgb_random_search.fit(X_search, y_search)
+            model = xgb.XGBRegressor(**params)
 
-    best_params = {k.split("__")[1]: v for k, v in xgb_random_search.best_params_.items()}
-    print("\n--- Tuning Complete ---")
-    print("Best Hyperparameters Found:", best_params)
+            model.fit(
+                X_search_train, y_search_train,
+                eval_set=[(X_search_val, y_search_val)],
+                verbose=False
+            )
+
+            preds = model.predict(X_search_val)
+            score = mean_squared_error(y_search_val, preds)
+            fold_scores.append(score)
+
+            trial.report(score, step=fold)
+            if trial.should_prune():
+                raise optuna.TrialPruned()
+
+        return np.mean(fold_scores)
+
+    study = optuna.create_study(direction="minimize")
+    study.optimize(objective, n_trials=40)
+
+    print(f"Best Fold MSE: {study.best_value:.4f}")
+    print(f"Best hyperparameters:")
+    best_params = study.best_params
+    for key, value in best_params:
+        print(f"{key}:{value}")
 
     best_xgb_model = XGBRegressor(
-        **best_params,
+        **best_params, 
+        tree_method="hist",
         device="cuda",
+        enable_categorical=True,
         random_state=seed,
-        eval_metric='rmse',
-        enable_categorical=True,  
         early_stopping_rounds=15
     )
 
@@ -552,6 +614,9 @@ def pytorch_nn(train_df, val_df, test_df, target, seed):
 
 
 if __name__ == "__main__":
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
+
     train_df = pd.read_parquet("data/ml_data/train_df.parquet")
     val_df = pd.read_parquet("data/ml_data/val_df.parquet")
     test_df = pd.read_parquet("data/ml_data/test_df.parquet")
@@ -563,17 +628,16 @@ if __name__ == "__main__":
 
     metrics = ['score', 'wc', 'favorites', 'dropped', 'forum']
 
-    # for metric in metrics:
-    #     rf_mses[metric] = []
-    #     xgb_mses[metric] = []
-    #     pt_mses[metric] = []
+    for metric in metrics:
+        rf_mses[metric] = []
+        xgb_mses[metric] = []
+        pt_mses[metric] = []
 
     for seed in [123, 1337, 4307, 6767, 42]:
         random.seed(seed)
         torch.manual_seed(seed)
         np.random.seed(seed)
         if torch.cuda.is_available():
-            print("torch cuda is available!")
             torch.cuda.manual_seed_all(seed)
         print(f"Current seed: {seed}")
 

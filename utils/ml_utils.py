@@ -1,10 +1,13 @@
 # utils/ml_utils.py
-# Functions that are used in the machine learning phase.
+# Functions that are used in the machine learning phase but are not the models themselves
 
 import pandas as pd
 import numpy as np
 import torch
 import torch.nn as nn
+import shap
+import os
+import xgboost as xgb
 
 from sklearn.base import (
     BaseEstimator,

@@ -65,13 +65,21 @@ def genre_mlb_svd(train_df, val_df, test_df, inference_df):
     test_bin = mlb.transform(test_df['genres'])
     inference_bin = mlb.transform(inference_df['genres'])
 
-    svd = TruncatedSVD(n_components=5, random_state=42)
+    max_components = train_df.shape[1]
+    svd = TruncatedSVD(n_components=max_components, random_state=42)
+    svd.fit(train_bin)
+
+    cumulative_variance = np.cumsum(svd.explained_variance_ratio_)
+    threshold = 0.90
+    optimal_components = np.argmax(cumulative_variance >= threshold) + 1
+
+    svd = TruncatedSVD(n_components=optimal_components, random_state=42)
     train_svd = svd.fit_transform(train_bin)
     val_svd = svd.transform(val_bin)
     test_svd = svd.transform(test_bin)
     inference_svd = svd.transform(inference_bin)
 
-    svd_cols = [f'genre_svd_{i}' for i in range(5)]
+    svd_cols = [f'genre_svd_{i}' for i in range(optimal_components)]
     train_svd_df = pd.DataFrame(train_svd, columns=svd_cols, index=train_df.index)
     val_svd_df = pd.DataFrame(val_svd, columns=svd_cols, index=val_df.index)
     test_svd_df = pd.DataFrame(test_svd, columns=svd_cols, index=test_df.index)
@@ -87,13 +95,81 @@ def theme_mlb_svd(train_df, val_df, test_df, inference_df):
     test_bin = mlb.transform(test_df['themes'])
     inference_bin = mlb.transform(inference_df['themes'])
 
-    svd = TruncatedSVD(n_components=7, random_state=42)
+    max_components = train_df.shape[1]
+    svd = TruncatedSVD(n_components=max_components, random_state=42)
+    svd.fit(train_bin)
+
+    cumulative_variance = np.cumsum(svd.explained_variance_ratio_)
+    threshold = 0.90
+    optimal_components = np.argmax(cumulative_variance >= threshold) + 1
+
+    svd = TruncatedSVD(n_components=optimal_components, random_state=42)
     train_svd = svd.fit_transform(train_bin)
     val_svd = svd.transform(val_bin)
     test_svd = svd.transform(test_bin)
     inference_svd = svd.transform(inference_bin)
 
-    svd_cols = [f'theme_svd_{i}' for i in range(7)]
+    svd_cols = [f'theme_svd_{i}' for i in range(optimal_components)]
+    train_svd_df = pd.DataFrame(train_svd, columns=svd_cols, index=train_df.index)
+    val_svd_df = pd.DataFrame(val_svd, columns=svd_cols, index=val_df.index)
+    test_svd_df = pd.DataFrame(test_svd, columns=svd_cols, index=test_df.index)
+    inference_svd_df = pd.DataFrame(inference_svd, columns=svd_cols, index=inference_df.index)
+
+    return train_svd_df, val_svd_df, test_svd_df, inference_svd_df
+
+# Performs multi-label binarization + truncated SVD to encode themes without bloating dimension count
+def studio_mlb_svd(train_df, val_df, test_df, inference_df):
+    mlb = MultiLabelBinarizer()
+    train_bin = mlb.fit_transform(train_df['studios'])
+    val_bin = mlb.transform(val_df['studios'])
+    test_bin = mlb.transform(test_df['studios'])
+    inference_bin = mlb.transform(inference_df['studios'])
+
+    max_components = train_df.shape[1]
+    svd = TruncatedSVD(n_components=max_components, random_state=42)
+    svd.fit(train_bin)
+
+    cumulative_variance = np.cumsum(svd.explained_variance_ratio_)
+    threshold = 0.90
+    optimal_components = np.argmax(cumulative_variance >= threshold) + 1
+
+    svd = TruncatedSVD(n_components=optimal_components, random_state=42)
+    train_svd = svd.fit_transform(train_bin)
+    val_svd = svd.transform(val_bin)
+    test_svd = svd.transform(test_bin)
+    inference_svd = svd.transform(inference_bin)
+
+    svd_cols = [f'studio_svd_{i}' for i in range(optimal_components)]
+    train_svd_df = pd.DataFrame(train_svd, columns=svd_cols, index=train_df.index)
+    val_svd_df = pd.DataFrame(val_svd, columns=svd_cols, index=val_df.index)
+    test_svd_df = pd.DataFrame(test_svd, columns=svd_cols, index=test_df.index)
+    inference_svd_df = pd.DataFrame(inference_svd, columns=svd_cols, index=inference_df.index)
+
+    return train_svd_df, val_svd_df, test_svd_df, inference_svd_df
+
+# Performs multi-label binarization + truncated SVD to encode themes without bloating dimension count
+def producer_mlb_svd(train_df, val_df, test_df, inference_df):
+    mlb = MultiLabelBinarizer()
+    train_bin = mlb.fit_transform(train_df['producers'])
+    val_bin = mlb.transform(val_df['producers'])
+    test_bin = mlb.transform(test_df['producers'])
+    inference_bin = mlb.transform(inference_df['producers'])
+
+    max_components = train_df.shape[1]
+    svd = TruncatedSVD(n_components=max_components, random_state=42)
+    svd.fit(train_bin)
+
+    cumulative_variance = np.cumsum(svd.explained_variance_ratio_)
+    threshold = 0.90
+    optimal_components = np.argmax(cumulative_variance >= threshold) + 1
+
+    svd = TruncatedSVD(n_components=optimal_components, random_state=42)
+    train_svd = svd.fit_transform(train_bin)
+    val_svd = svd.transform(val_bin)
+    test_svd = svd.transform(test_bin)
+    inference_svd = svd.transform(inference_bin)
+
+    svd_cols = [f'producer_svd_{i}' for i in range(optimal_components)]
     train_svd_df = pd.DataFrame(train_svd, columns=svd_cols, index=train_df.index)
     val_svd_df = pd.DataFrame(val_svd, columns=svd_cols, index=val_df.index)
     test_svd_df = pd.DataFrame(test_svd, columns=svd_cols, index=test_df.index)
@@ -110,12 +186,9 @@ def demographic_mlb(train_df, val_df, test_df, inference_df):
     inference_bin = mlb.transform(inference_df['demographics'])
 
     def create_and_concat(df, arr):
-        # Create DataFrame with MLB classes as columns and preserve original index
         mlb_df = pd.DataFrame(arr, columns=mlb.classes_, index=df.index)
-        # Drop the original 'demographics' column and concat horizontally
         return pd.concat([df.drop(columns=['demographics']), mlb_df], axis=1)
 
-    # Process all dataframes
     train_res = create_and_concat(train_df, train_bin)
     val_res = create_and_concat(val_df, val_bin)
     test_res = create_and_concat(test_df, test_bin)

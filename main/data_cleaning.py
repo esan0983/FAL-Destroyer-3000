@@ -13,7 +13,7 @@ from utils import parse_list_col
 def clean(df):
     df = df.drop_duplicates(subset=['mal_id'], keep='first')
 
-    lists = ['genres', 'demographics', 'themes']
+    lists = ['genres', 'demographics', 'themes', 'studios', 'producers']
     df[lists] = df[lists].map(parse_list_col)
 
     print("DF NaNs:")

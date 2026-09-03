@@ -12,5 +12,7 @@ from .preprocessing_utils import (
     encode_multi_label_theme,
     genre_mlb_svd,
     theme_mlb_svd,
-    demographic_mlb
+    demographic_mlb,
+    studio_mlb_svd,
+    producer_mlb_svd
 )

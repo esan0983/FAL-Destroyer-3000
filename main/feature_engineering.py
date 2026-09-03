@@ -12,10 +12,12 @@ from sklearn.model_selection import train_test_split
 from utils import (
     genre_mlb_svd,
     theme_mlb_svd,
-    demographic_mlb
+    demographic_mlb,
+    studio_mlb_svd,
+    producer_mlb_svd
 )
 
-def pre_split(df):
+def pre_split(df, init_rows):
     df['drop_rate'] = df['dropped'] / df['wc']
 
     # to handle skewness
@@ -48,8 +50,6 @@ def pre_split(df):
     
     df = df.fillna({'rating': ""})
 
-    df['sequel'] = df['sequel'].astype(int)
-
     df['rating'] = df['rating'].astype('category')
 
     df['source'] = df['source'].astype('category')
@@ -58,7 +58,7 @@ def pre_split(df):
 
     df['prequel_season'] = df['prequel_season'].astype('category')
 
-    df = df.drop(columns=['episodes', 'mal_id', 'sequel'])
+    df = df.drop(columns=['episodes', 'mal_id'])
 
     return df
 
@@ -102,6 +102,32 @@ def post_split(train_df, val_df, test_df, inference_df):
     test_df = test_df.join(temp_test)
     inference_df = inference_df.join(temp_inf)
 
+    # STUDIOS
+    temp_train, temp_val, temp_test, temp_inf = studio_mlb_svd(
+        train_df=train_df,
+        val_df=val_df,
+        test_df=test_df,
+        inference_df=inference_df
+    )
+
+    train_df = train_df.join(temp_train)
+    val_df = val_df.join(temp_val)
+    test_df = test_df.join(temp_test)
+    inference_df = inference_df.join(temp_inf)
+
+    # PRODUCERS
+    temp_train, temp_val, temp_test, temp_inf = producer_mlb_svd(
+        train_df=train_df,
+        val_df=val_df,
+        test_df=test_df,
+        inference_df=inference_df
+    )
+
+    train_df = train_df.join(temp_train)
+    val_df = val_df.join(temp_val)
+    test_df = test_df.join(temp_test)
+    inference_df = inference_df.join(temp_inf)
+
     # DEMOGRAPHICS
     temp_train, temp_val, temp_test, temp_inf = demographic_mlb(
         train_df=train_df,
@@ -122,7 +148,7 @@ def post_split(train_df, val_df, test_df, inference_df):
 
     for name, df in [('train', train_df), ('val', val_df), ('test', test_df), ('inference', inference_df)]:
         df.columns = df.columns.str.replace(' ', '_')
-        df = df.drop(columns=['drop_rate', 'genres', 'themes']) # WILL DITCH TARGET ENCODING FOR NOW
+        df = df.drop(columns=['drop_rate', 'genres', 'themes', 'sequel']) # WILL DITCH TARGET ENCODING FOR NOW
 
         if name == 'inference':
             df = df.drop(columns=[metric for metric in metrics if metric in df.columns])

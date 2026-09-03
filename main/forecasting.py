@@ -279,3 +279,12 @@ def claude_test():
 
 if __name__ == "__main__":
     claude_test()
+
+    # FOR YOUR MAIN DATA
+    # Variables:
+    # current_json: this should include the updated measurements of roster metrics
+    # criteria_json: this should include the manually-entered criteria ratios. NOTE: we might change criteria_json so that it
+    # becomes weekly instead of daily, will work on the updated logic of that soon
+    # roster: should exactly match the titles given in the JSON or else it will throw errors or leave out some anime
+    # ace_threshold: should be available when FAL details come out
+    # tolerance: your icky zone for acing
