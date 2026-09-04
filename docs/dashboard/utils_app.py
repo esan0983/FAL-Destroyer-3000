@@ -10,12 +10,14 @@ from pathlib import Path
 
 import pandas as pd
 import streamlit as st
+import numpy as np
 import duckdb
 
 STATS_PARQUET_PATH = Path("data/processed/stats_df.parquet")
 
+used_cols = ['title', 'source', 'rating', 'genres', 'themes', 'sequel', 'score', 'wc', 'drop_rate']
 
-@st.cache_data(show_spinner="Loading stats_df.parquet...")
+@st.cache_data(hash_funcs={pd.DataFrame: lambda _: None})
 def load_stats_df(path: str = str(STATS_PARQUET_PATH)) -> pd.DataFrame:
     """Load the cohort-level stats dataframe produced by feature_engineering.pre_split.
 
@@ -29,7 +31,7 @@ def load_stats_df(path: str = str(STATS_PARQUET_PATH)) -> pd.DataFrame:
             "run and stats_df.parquet exists at that path."
         )
         return pd.DataFrame()
-    return pd.read_parquet(p, engine="pyarrow")
+    return pd.read_parquet(p, columns=used_cols, engine="pyarrow")
 
 @st.cache_data
 def get_column_bounds(df):
@@ -39,6 +41,18 @@ def get_column_bounds(df):
         if df[col].notna().any():
             bounds[col] = (float(df[col].min()), float(df[col].max()))
     return bounds
+
+@st.cache_data
+def get_column_options(df, column_name):
+    if column_name in df.columns:
+        return sorted(df[column_name].dropna().unique().tolist())
+    return []
+
+@st.cache_data
+def get_multival_column_options(df, column_name):
+    if column_name in df.columns:
+        return sorted(df[column_name].explode().dropna().unique().tolist())
+    return []
 
 def render_top_filters(df: pd.DataFrame, key_prefix: str) -> pd.DataFrame:
     """Render a row of filter widgets at the top of a page and return the
@@ -52,33 +66,52 @@ def render_top_filters(df: pd.DataFrame, key_prefix: str) -> pd.DataFrame:
 
     with st.container(border=True):
         st.markdown("**Filters**")
-        cols = st.columns(5)
+        cols = st.columns(7)
         filtered = df.copy()
+
         bounds = get_column_bounds(df)
+
+        all_column_options = {
+            "rating": get_column_options(df, "rating"),
+            "source": get_column_options(df, "source")
+        }
+
+        all_multival_options = {
+            "genres": get_multival_column_options(df, "genres"),
+            "themes": get_multival_column_options(df, "themes")
+        }
 
         # Rating filter
         with cols[0]:
-            if "rating" in df.columns:
-                options = sorted(df["rating"].dropna().unique().tolist())
-                selected = st.multiselect(
-                    "Rating", options, default=[], key=f"{key_prefix}_rating"
-                )
-                if selected:
-                    filtered = filtered[filtered["rating"].isin(selected)]
+            col_name = "rating"
+            if col_name in df.columns:
+                options = all_column_options.get(col_name, [])
+                if options:
+                    selected = st.multiselect(
+                        "Rating", options, default=[], key=f"{key_prefix}_{col_name}"
+                    )
+                    if selected:
+                        filtered = filtered[filtered[col_name].isin(selected)]
+                else:
+                    st.caption(f"Can't get {col_name} options")
             else:
-                st.caption("No `rating` column")
+                st.caption(f"No {col_name} column")
 
         # Source filter
         with cols[1]:
-            if "source" in df.columns:
-                options = sorted(df["source"].dropna().unique().tolist())
-                selected = st.multiselect(
-                    "Source", options, default=[], key=f"{key_prefix}_source"
-                )
-                if selected:
-                    filtered = filtered[filtered["source"].isin(selected)]
+            col_name = "source"
+            if col_name in df.columns:
+                options = all_column_options.get(col_name, [])
+                if options:
+                    selected = st.multiselect(
+                        "Source", options, default=[], key=f"{key_prefix}_{col_name}"
+                    )
+                    if selected:
+                        filtered = filtered[filtered[col_name].isin(selected)]
+                else:
+                    st.caption(f"Can't get {col_name} options")
             else:
-                st.caption("No `source` column")
+                st.caption(f"No {col_name} column")
 
         # Sequel filter
         with cols[2]:
@@ -95,9 +128,51 @@ def render_top_filters(df: pd.DataFrame, key_prefix: str) -> pd.DataFrame:
             else:
                 st.caption("No `sequel` column")
 
-        # Score range filter
+        # Genre filter
         with cols[3]:
-            if "score" in df.columns and df["score"].notna().any():
+            col_name = "genres"
+            if col_name in df.columns:
+                options = all_multival_options.get(col_name, [])
+                if options:
+                    selected = st.multiselect(
+                        "Genres", options, default=[], key=f"{key_prefix}_{col_name}"
+                    )
+                    if selected:
+                        sel_set = set(selected)
+                        filtered = filtered[
+                            filtered[col_name].apply(
+                                lambda x: sel_set.issubset(x) if isinstance(x, (list, set, np.ndarray)) else False
+                            )
+                        ]
+                else:
+                    st.caption(f"Can't get {col_name} options")
+            else:
+                st.caption(f"No {col_name} column")
+
+        # Theme filter
+        with cols[4]:
+            col_name = "themes"
+            if col_name in df.columns:
+                options = all_multival_options.get(col_name, [])
+                if options:
+                    selected = st.multiselect(
+                        "Themes", options, default=[], key=f"{key_prefix}_{col_name}"
+                    )
+                    if selected:
+                        sel_set = set(selected)
+                        filtered = filtered[
+                            filtered[col_name].apply(
+                                lambda x: sel_set.issubset(x) if isinstance(x, (list, set, np.ndarray)) else False
+                            )
+                        ]
+                else:
+                    st.caption(f"Can't get {col_name} options")
+            else:
+                st.caption(f"No {col_name} column")
+
+        # Score range filter
+        with cols[5]:
+            if "score" in df.columns:
                 if "score" in bounds:
                     lo, hi = bounds["score"]
                     if lo < hi:
@@ -117,8 +192,8 @@ def render_top_filters(df: pd.DataFrame, key_prefix: str) -> pd.DataFrame:
                 st.caption("No `score` column")
 
         # Score range filter
-        with cols[4]:
-            if "drop_rate" in df.columns and df["drop_rate"].notna().any():
+        with cols[6]:
+            if "drop_rate" in df.columns:
                 if "drop_rate" in bounds:
                     lo, hi = bounds["drop_rate"]
                     if lo < hi:

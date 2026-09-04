@@ -32,9 +32,45 @@ st.divider()
 tab_table, tab_chart, tab_summary = st.tabs(["Table", "Chart", "Summary Stats"])
 
 with tab_table:
-    st.dataframe(filtered_df, use_container_width=True, hide_index=True)
+    # Initialize display limit state
+    if "row_limit" not in st.session_state:
+        st.session_state.row_limit = 100
+
+    total_rows = len(filtered_df)
+    current_limit = st.session_state.row_limit
+
+    # Slice table for fast rendering
+    displayed_df = filtered_df.head(current_limit)
+
+    # Status indicator
+    st.caption(f"Showing **{len(displayed_df):,}** of **{total_rows:,}** filtered rows")
+
+    # Fast display of sliced dataset
+    st.dataframe(displayed_df, width="stretch", hide_index=True)
+
+    # -----------------------------------------------------------------------
+    # Pagination Controls
+    # -----------------------------------------------------------------------
+    if current_limit < total_rows:
+        col1, col2, _ = st.columns([1, 1, 3])
+        with col1:
+            if st.button("Load next 100 rows"):
+                st.session_state.row_limit += 100
+                st.rerun()
+        with col2:
+            if st.button("Show all rows"):
+                st.session_state.row_limit = total_rows
+                st.rerun()
+    elif total_rows > 100:
+        if st.button("Reset view to top 100"):
+            st.session_state.row_limit = 100
+            st.rerun()
+
+    st.divider()
+
+    # Note: CSV Download gets the FULL filtered dataset, not just the sliced view
     st.download_button(
-        "Download filtered data as CSV",
+        "Download full filtered data as CSV",
         data=filtered_df.to_csv(index=False).encode("utf-8"),
         file_name="stats_df_filtered.csv",
         mime="text/csv",
@@ -61,12 +97,12 @@ with tab_chart:
         chart_df = filtered_df[[x_col, y_col] + ([color_col] if color_col else [])].dropna()
 
         if color_col:
-            st.scatter_chart(chart_df, x=x_col, y=y_col, color=color_col, use_container_width=True)
+            st.scatter_chart(chart_df, x=x_col, y=y_col, color=color_col, width='stretch')
         else:
-            st.scatter_chart(chart_df, x=x_col, y=y_col, use_container_width=True)
+            st.scatter_chart(chart_df, x=x_col, y=y_col, width='stretch')
 
 with tab_summary:
-    st.dataframe(filtered_df.describe(include="all").transpose(), use_container_width=True)
+    st.dataframe(filtered_df.describe(include="all").transpose(), width='stretch')
 
     if "genres" in filtered_df.columns:
         st.subheader("Genre frequency (filtered view)")

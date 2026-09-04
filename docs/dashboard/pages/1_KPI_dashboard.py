@@ -16,20 +16,9 @@ import streamlit as st
 from utils_app import load_stats_df, render_top_filters
 
 st.title("🎯 KPI Dashboard")
-st.caption("A plain-language snapshot of the catalog for the current filter selection.")
+# st.caption("A plain-language snapshot of the catalog for the current filter selection.")
 
 df = load_stats_df()
-
-# ---------------------------------------------------------------------------
-# Top filter bar
-# ---------------------------------------------------------------------------
-filtered_df = render_top_filters(df, key_prefix="kpi")
-
-st.divider()
-
-if filtered_df.empty:
-    st.info("No data available — check that stats_df.parquet exists and filters aren't too restrictive.")
-    st.stop()
 
 # ---------------------------------------------------------------------------
 # KPI configuration — what to show, and thresholds that feed derived KPIs
@@ -107,13 +96,13 @@ st.divider()
 # ---------------------------------------------------------------------------
 # Compute KPI values
 # ---------------------------------------------------------------------------
-n_total = len(filtered_df)
+n_total = len(df)
 
 
 def n_unique_exploded(col):
-    if col not in filtered_df.columns:
+    if col not in df.columns:
         return None
-    return filtered_df[col].explode().nunique(dropna=True)
+    return df[col].explode().nunique(dropna=True)
 
 
 kpi_values = {}
@@ -138,20 +127,20 @@ kpi_values["Unique producers"] = (
     None,
 )
 
-if "score" in filtered_df.columns and filtered_df["score"].notna().any():
-    avg_score = filtered_df["score"].mean()
+if "score" in df.columns and df["score"].notna().any():
+    avg_score = df["score"].mean()
     kpi_values["Average score"] = (f"{avg_score:+.2f}", None)
 else:
     kpi_values["Average score"] = ("N/A", None)
 
-if "sequel" in filtered_df.columns and n_total:
-    pct_sequel = filtered_df["sequel"].astype(bool).mean() * 100
+if "sequel" in df.columns and n_total:
+    pct_sequel = df["sequel"].astype(bool).mean() * 100
     kpi_values["% sequels"] = (f"{pct_sequel:.1f}%", None)
 else:
     kpi_values["% sequels"] = ("N/A", None)
 
-if "score" in filtered_df.columns and n_total:
-    n_high_score = (filtered_df["score"] >= settings["high_score_cutoff"]).sum()
+if "score" in df.columns and n_total:
+    n_high_score = (df["score"] >= settings["high_score_cutoff"]).sum()
     pct_high_score = n_high_score / n_total * 100
     kpi_values["% high scoring"] = (
         f"{pct_high_score:.1f}%",
@@ -160,8 +149,8 @@ if "score" in filtered_df.columns and n_total:
 else:
     kpi_values["% high scoring"] = ("N/A", None)
 
-if "drop_rate" in filtered_df.columns and n_total:
-    n_high_drop = (filtered_df["drop_rate"] >= settings["high_drop_cutoff"]).sum()
+if "drop_rate" in df.columns and n_total:
+    n_high_drop = (df["drop_rate"] >= settings["high_drop_cutoff"]).sum()
     pct_high_drop = n_high_drop / n_total * 100
     kpi_values["% high drop rate"] = (
         f"{pct_high_drop:.1f}%",

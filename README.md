@@ -83,19 +83,15 @@ Since the forum variable can not be directly converted to points, we will still 
 * Some chunks of data are recorded around 24 hours apart due to rate limits, which slightly poisons our machine learning process.
 
 ## More Commit Notes (9/2)
-* Fourth data pass (it's minor this time) to include studios and producers
-* Implemented optuna for both models to optimize hyperparameter tuning
-* Fixed the errors in the Statistics and it now adjusts to the recent data pass, just need motivation to actually work on it further
-* Finished migrating time_series.ipynb into forecasting.py and forecast_graph.py
+* Updated Kalman filter documentation
 * Generated a streamlit dashboard
 
 ## Post-commit Plans
 * Update ML section of the README to include an overview of parameters and specific methodologies that improved training
 * Work on Statistics notebook further
 * Decide on noise and observation matrices for the Kalman filter
-* Explain how to translate raw data into proper values for measured_scores.json: update_json.py should already spit out the z-scores, and all you have to do is to feed it into the heuristic formula via current_criteria.json
-* Related to the bullet point above, once you're done with the machine learning phase (I'll give a soft deadline of September 9), write a detailed daily plan on how you're gonna record data and feed it into forecasting.py
 * Finish the Kalman filter overleaf doc
-* Before doing stuff to the dashboard, draft out what "story" you might wanna tell to non-technicals first
+* Draft powerpoint presentation
 * Update filters on streamlit dashboard
 * Add plots to streamlit dashboard
+* Test untested functions
