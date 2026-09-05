@@ -294,7 +294,7 @@ def run(start_id, df, max_id, max_consecutive_misses, save_every, custom_bool):
     print(f"Consecutive misses at stop: {consecutive_misses}")
     return df
 
-def run_custom(df, mal_ids, save_every, custom_bool):
+def run_custom(df, mal_ids, save_every, custom_bool=True):
     """
     Collect Fall 2026 Data
     """
@@ -329,6 +329,32 @@ def run_custom(df, mal_ids, save_every, custom_bool):
     print("Finished!")
     return df
 
+def run_custom2(df, custom_ids, custom_bool=False):
+    print("ETL Pipeline (Custom IDS) Currently Running!")
+    pending_rows = []
+
+    for current_id in custom_ids:
+        try:
+            result = extract_single(current_id, custom_bool)
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 429:
+                print(f"Rate limited on id {current_id}. Backing off 5s and retrying...")
+                time.sleep(5)
+                continue 
+            else:
+                print(f"Unhandled HTTP error on id {current_id}: {e}. Skipping.")
+
+        pending_rows.append(result)
+
+    # Flush any remaining rows
+    if pending_rows:
+        new_data = pd.DataFrame(pending_rows, columns=COLUMNS)
+        df = pd.concat([df, new_data], ignore_index=True)
+        df = load_data(df, custom_bool)
+
+    print("Finished!")
+    return df
+
 
 if __name__ == "__main__":
     custom_bool = False # CHANGE THIS FOR EITHER STANDARD COLLECTION OR FALL 2026 COLLECTION
@@ -341,21 +367,30 @@ if __name__ == "__main__":
     MAX_CONSECUTIVE_MISSES = 2500
     SAVE_EVERY = 25
 
-    # FOR STANDARD COLLECTION
-    run(
-        start_id=START_ID,
-        df=initial_data,
-        max_id=MAX_ID,
-        max_consecutive_misses=MAX_CONSECUTIVE_MISSES,
-        save_every=SAVE_EVERY,
-        custom_bool=custom_bool
-    )
+    custom_ids = [30091, 29836, 29974, 29976, 29854, 29865, 30123, 30127, 29758, 30015, 30016, 30144, 30028, 30156, 30030, 30039, 29785, 29786, 29787, 30173, 29803, 30187, 29941, 30205]
 
-    # FOR FALL 2026 COLLECTION
-    # mal_ids = get_ids()
-    # run_custom(
+    # FOR STANDARD COLLECTION
+    # run(
+    #     start_id=START_ID,
     #     df=initial_data,
-    #     mal_ids=mal_ids,
+    #     max_id=MAX_ID,
+    #     max_consecutive_misses=MAX_CONSECUTIVE_MISSES,
     #     save_every=SAVE_EVERY,
     #     custom_bool=custom_bool
+    # )
+
+    # FOR FALL 2026 COLLECTION
+    mal_ids = get_ids()
+    run_custom(
+        df=initial_data,
+        mal_ids=mal_ids,
+        save_every=SAVE_EVERY,
+        custom_bool=True
+    )
+
+    # FOR CUSTOM ID COLLECTION
+    # run_custom2(
+    #     df=initial_data,
+    #     custom_ids=custom_ids,
+    #     custom_bool=False
     # )

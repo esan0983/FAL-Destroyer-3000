@@ -1,6 +1,9 @@
-import torch
-print("Torch version:", torch.__version__)
-print("CUDA available:", torch.cuda.is_available())
-print("CUDA version (torch built with):", torch.version.cuda)
-if torch.cuda.is_available():
-    print("Device:", torch.cuda.get_device_name(0))
+import pandas as pd
+
+old_data = pd.read_parquet("data/processed/anime_data_1.parquet")
+old_ids = set(old_data['mal_id'].tolist())
+
+new_data = pd.read_csv("data/raw/anime_data.csv")
+new_ids = set(new_data['mal_id'].tolist())
+
+print(old_ids - new_ids)

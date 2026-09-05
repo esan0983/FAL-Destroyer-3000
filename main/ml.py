@@ -8,6 +8,8 @@ os.environ["SCIPY_ARRAY_API"] = "1"
 import sklearn
 sklearn.set_config(array_api_dispatch=True)
 
+from pathlib import Path
+
 import pandas as pd
 import numpy as np
 from sklearn.base import (
@@ -18,8 +20,10 @@ from sklearn.base import (
 from sklearn.model_selection import (
     RandomizedSearchCV,
     KFold,
-    cross_val_score
+    cross_val_score,
+    train_test_split
 )
+from sklearn.preprocessing import OneHotEncoder
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import (
     mean_squared_error, 
@@ -28,7 +32,11 @@ from sklearn.metrics import (
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 import xgboost as xgb
+
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+
 import copy
 from pprint import pprint
 import json
@@ -48,15 +56,22 @@ from pprint import pprint
 import random
 
 import optuna
+optuna.logging.set_verbosity(optuna.logging.INFO)
 
 import warnings
 warnings.filterwarnings("ignore", message=".*Falling back to prediction using DMatrix.*")
+warnings.filterwarnings("ignore", message=".*will be ignored.*")
+
+import joblib
 
 from utils import (
     PytorchNN,
     pytorch_train_processing,
-    pytorch_preprocessing
+    pytorch_preprocessing,
+    multivalue_preprocessing,
+    encode_features
 )
+
 
 # Creates both individual and group feature importance charts
 def feature_importance(test_df, target):
@@ -127,67 +142,157 @@ def feature_importance(test_df, target):
     plt.savefig(save_path, dpi=300, bbox_inches='tight')
     plt.close()
 
+def rf_feature_importance(train_df, test_df, target):
+    metrics = ['score', 'wc', 'favorites', 'dropped', 'forum']
+    unwanted_metrics = [metric for metric in metrics if metric != target]
+
+    train_df = train_df.drop(columns=unwanted_metrics, errors='ignore')
+    test_df = test_df.drop(columns=unwanted_metrics, errors='ignore')
+
+    X_train_full = train_df.drop(columns=[target], errors='ignore')
+    
+    X_test_full = test_df.drop(columns=[target], errors='ignore')
+
+    rf_model = joblib.load(f"data/ml_predictions/models/rf_{target}_model.joblib")
+
+    X_train_full_prep, X_test_full_prep = multivalue_preprocessing(X_train_full, X_test_full)
+    X_train_full_proc, X_test_full_proc = encode_features(X_train_full_prep, X_test_full_prep)
+
+    explainer = shap.TreeExplainer(rf_model)
+    shap_values = explainer(X_test_full_proc)
+    
+    plt.figure(figsize=(10, 8))
+    shap.summary_plot(shap_values, X_test_full_proc, show=False)
+    plt.title(f'Individual Feature Importance (SHAP) - Target: {target}', fontsize=14, pad=12)
+    plt.tight_layout()
+
+    output_dir = "data/ml_predictions/graphs"
+
+    indiv_save_path = os.path.join(output_dir, f"rf_features_{target}.png") if len(X_test_full_proc) > 1 else os.path.join(output_dir, f"rf_features_{target}_specific.png")
+    plt.savefig(indiv_save_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    print(f"Individual feature plot saved to {indiv_save_path}")
+
+def rf_inference(train_df, inference_df, target):
+    metrics = ['score', 'wc', 'favorites', 'dropped', 'forum']
+    unwanted_metrics = [metric for metric in metrics if metric != target]
+
+    rf_model = joblib.load(f"data/ml_predictions/models/rf_{target}_model.joblib")
+
+    train_df = train_df.drop(columns=unwanted_metrics)
+    X_inf_full = inference_df.drop(columns=['title'])
+    titles = inference_df['title']
+    X_train_full = train_df.drop(columns=[target])
+
+    X_train_full_prep, X_inf_full_prep = multivalue_preprocessing(X_train_full, inference_df)
+    X_train_full_proc, X_inf_full_proc = encode_features(X_train_full_prep, X_inf_full_prep)
+
+    inferences = rf_model.predict(X_inf_full_proc)
+
+    inference_dict = {}
+    
+    for title in titles:
+        inference_dict[title] = 0
+
+    inference_dict = {title: inferences[idx].item() for idx, title in enumerate(titles)}
+    inference_dict = dict(sorted(inference_dict.items(), key=lambda item: item[1], reverse=True))
+
+    output_dir = "data/ml_predictions/roster"
+
+    file_path = os.path.join(output_dir, f"{target}_predictions.json")
+
+    with open(file_path, "w", encoding="utf-8") as f:
+        json.dump(inference_dict, f, indent=4)
+
+    print(f"Predictions for {target} saved!")
+
 # Runs a random forest model and returns test MSE
-def random_forest(train_df, val_df, test_df, target, seed):
+def random_forest(train_df, test_df, target, seed):
     metrics = ['score', 'wc', 'favorites', 'dropped', 'forum']
     unwanted_metrics = [metric for metric in metrics if metric != target]
 
     train_df = train_df.drop(columns=unwanted_metrics)
-    val_df = val_df.drop(columns=unwanted_metrics)
     test_df = test_df.drop(columns=unwanted_metrics)
 
-    full_train_df = pd.concat([train_df, val_df], axis=0).reset_index(drop=True)
+    X_train_full = train_df.drop(columns=[target])
+    y_train_full = train_df[target]
+    
+    X_test_full = test_df.drop(columns=[target])
+    y_test_full = test_df[target]
 
-    combined = pd.concat([full_train_df, test_df], axis=0, ignore_index=True)
-    combined = pd.get_dummies(combined, columns=['rating', 'source', 'season', 'prequel_season'], dtype=int)
+    kf = KFold(n_splits=5, shuffle=True, random_state=seed)
+    cached_folds = []
 
-    full_train_df = combined.iloc[:len(full_train_df)].copy()
-    test_df = combined.iloc[len(full_train_df):].copy()
+    print("Caching folds...")
+    for train_idx, val_idx in kf.split(X_train_full, y_train_full):
+        X_tr, X_va = X_train_full.iloc[train_idx].copy(), X_train_full.iloc[val_idx].copy()
+        y_tr, y_va = y_train_full.iloc[train_idx], y_train_full.iloc[val_idx]
 
-    X_train = full_train_df.drop(columns=[target])
-    X_test = test_df.drop(columns=[target])
-    y_train = full_train_df[target]
-    y_test = test_df[target]
+        X_tr_proc, X_va_proc = multivalue_preprocessing(X_tr, X_va)
+        X_tr_proc, X_va_proc = encode_features(X_tr_proc, X_va_proc)
+
+        cached_folds.append((
+            X_tr_proc.to_numpy(),
+            y_tr.to_numpy(),
+            X_va_proc.to_numpy(),
+            y_va.to_numpy()
+        ))
 
     def objective(trial):
         params = {
-            'n_estimators': trial.suggest_int('n_estimators', 150, 750),
-            'max_features': trial.suggest_float('max_features', 0.1, 0.5),            
-            'max_depth': trial.suggest_int('max_depth', 5, 25),                 
-            'min_samples_split': trial.suggest_int('min_samples_split', 4, 8),                  
+            'n_estimators': trial.suggest_int('n_estimators', 200, 400),
+            'max_features': trial.suggest_float('max_features', 0.1, 0.5),
+            'max_depth': trial.suggest_int('max_depth', 5, 25),
+            'min_samples_split': trial.suggest_int('min_samples_split', 4, 8),
             'min_samples_leaf': trial.suggest_int('min_samples_leaf', 2, 6),
+            'criterion': 'squared_error', # Scikit-learn optimizes squared error directly
             'random_state': seed,
-            'n_jobs': -1              
-        } 
+            'n_jobs': -1
+        }
 
-        rf_model = RandomForestRegressor(**params)
+        fold_rmses = []
 
-        score = cross_val_score(rf_model, X_train, y_train, cv=5, scoring="neg_mean_squared_error").mean()
+        for fold_idx, (X_tr_proc, y_tr, X_va_proc, y_va) in enumerate(cached_folds):
+            rf_model = RandomForestRegressor(**params)
+            rf_model.fit(X_tr_proc, y_tr)
 
-        return -score
+            preds = rf_model.predict(X_va_proc)
+            rmse = np.sqrt(mean_squared_error(y_va, preds))
 
-    study = optuna.create_study(direction="minimize")
-    study.optimize(objective, n_trials=50)
+            fold_rmses.append(rmse)
+
+            trial.report(np.mean(fold_rmses), fold_idx)
+
+            if trial.should_prune():
+                raise optuna.TrialPruned()
+
+        return np.mean(fold_rmses)
+
+    study = optuna.create_study(
+        direction="minimize",
+        sampler=optuna.samplers.TPESampler(n_startup_trials=10, seed=seed),
+        pruner=optuna.pruners.MedianPruner(
+            n_startup_trials=10,
+            n_warmup_steps=0     
+        )
+    )
+    study.optimize(objective, n_trials=50, n_jobs=1)
 
     best_params = study.best_params
-
-    print("Best MSE:", study.best_value)
+    print(f"Best CV RMSE: {study.best_value:.4f}")
     print("Best Hyperparameters:", best_params)
 
-    final_train_df = combined.iloc[:len(train_df)].copy()
-    final_val_df = combined.iloc[len(train_df):len(train_df)+len(val_df)].copy()
+    X_train_full_prep, X_test_full_prep = multivalue_preprocessing(X_train_full, X_test_full)
+    X_train_full_proc, X_test_proc = encode_features(X_train_full_prep, X_test_full_prep)
 
-    X_train_final = final_train_df.drop(columns=[target])
-    y_train_final = final_train_df[target]
-    X_val_final = final_val_df.drop(columns=[target])
-    y_val_final = final_val_df[target]
+    X_train_final_proc, X_val_final_proc, y_train_final, y_val_final = train_test_split(
+        X_train_full_proc, y_train_full, test_size=0.1875, random_state=seed
+    )
 
-    clean_params = {k.replace("model__", ""): v for k, v in best_params.items()}
-    max_trees = clean_params.pop("n_estimators", 750) 
+    max_trees = best_params.pop("n_estimators", 750) 
 
-    # Initialize model with 0 trees and warm_start
     best_rf_model = RandomForestRegressor(
-        **clean_params,
+        **best_params,
         n_estimators=0,
         warm_start=True,
         random_state=seed,
@@ -195,7 +300,7 @@ def random_forest(train_df, val_df, test_df, target, seed):
     )
 
     patience = 10
-    best_val_mse = float('inf')
+    best_val_rmse = float('inf')
     no_improvement_count = 0
     step_size = 5 
     final_model_checkpoint = None
@@ -203,13 +308,13 @@ def random_forest(train_df, val_df, test_df, target, seed):
     print("Training final model with early stopping...")
     for n_trees in range(step_size, max_trees + 1, step_size):
         best_rf_model.n_estimators = n_trees
-        best_rf_model.fit(X_train_final, y_train_final)
+        best_rf_model.fit(X_train_final_proc, y_train_final)
         
-        val_preds = best_rf_model.predict(X_val_final)
-        val_mse = mean_squared_error(y_val_final, val_preds)
+        val_preds = best_rf_model.predict(X_val_final_proc)
+        val_rmse = np.sqrt(mean_squared_error(y_val_final, val_preds))
         
-        if val_mse < best_val_mse:
-            best_val_mse = val_mse
+        if val_rmse < best_val_rmse:
+            best_val_rmse = val_rmse
             no_improvement_count = 0
             final_model_checkpoint = copy.deepcopy(best_rf_model)
         else:
@@ -223,12 +328,15 @@ def random_forest(train_df, val_df, test_df, target, seed):
         if final_model_checkpoint is None:
             final_model_checkpoint = best_rf_model
 
-    y_pred = final_model_checkpoint.predict(X_test)
+    print("Saving model...")
+    joblib.dump(final_model_checkpoint, f"data/ml_predictions/models/rf_{target}_model.joblib", compress=3)
 
-    mse = mean_squared_error(y_test, y_pred)
+    y_pred = final_model_checkpoint.predict(X_test_proc)
+    mse = mean_squared_error(y_test_full, y_pred)
+    r2 = r2_score(y_test_full, y_pred)
 
-    print(f"Target {target} -> Test MSE: {mse:.4f}")
-    return mse
+    print(f"Target {target} -> Test MSE: {mse:.4f} | Test R^2: {r2:.4f}")
+    return mse, r2
 
 # Uses inference data and a specified metric to load the XGBoost model and save predictions as JSON
 def xgboost_infer(inference_df, target):
@@ -279,50 +387,48 @@ def xgboost_r2(test_df, target):
     print(f"Correlation score for {target}: {r2}")
 
 # Runs an XGBoost model, saves the best model parameters, and returns test MSE
-def xgboost(train_df, val_df, test_df, target, seed):
+def xgboost(train_df, test_df, target, seed):
     metrics = ['score', 'wc', 'favorites', 'dropped', 'forum']
     unwanted_metrics = [metric for metric in metrics if metric != target]
 
-    drop_cols = unwanted_metrics
-    train_df = train_df.drop(columns=drop_cols)
-    val_df = val_df.drop(columns=drop_cols)
-    test_df = test_df.drop(columns=drop_cols)
+    train_df = train_df.drop(columns=unwanted_metrics)
+    test_df = test_df.drop(columns=unwanted_metrics)
 
-    X_train = train_df.drop(columns=[target])
-    X_val = val_df.drop(columns=[target])
-    X_test = test_df.drop(columns=[target])
+    X_train_full = train_df.drop(columns=[target])
+    y_train_full = train_df[target]
+    
+    X_test_full = test_df.drop(columns=[target])
+    y_test_full = test_df[target]
 
-    y_train = train_df[target]
-    y_val = val_df[target]
-    y_test = test_df[target] 
+    cat_cols = ['source', 'rating', 'season', 'prequel_season']
+    for col in cat_cols:
+        if col in X_train_full.columns:
+            X_train_full[col] = X_train_full[col].astype('category')
+        if col in X_test_full.columns:
+            X_test_full[col] = X_test_full[col].astype('category')
 
-    X_search = pd.concat([X_train, X_val], axis=0)
-    y_search = pd.concat([y_train, y_val], axis=0)
+    print("Pre-processing and caching CV folds...")
+    kf = KFold(n_splits=5, shuffle=True, random_state=seed)
+    cached_folds = []
 
-    # Contatenation flattens categories to strings
-    # Note that this is not as robust since there could be something in the test data that's not in training data.
-    # For now, this works as is. In the future, try to make this more robust.
-    for col in ['source', 'rating', 'season', 'prequel_season']:
-        if col in X_search.columns:
-            X_search[col] = X_search[col].astype('category')
-        if col in X_train.columns:
-            X_train[col] = X_train[col].astype('category')
-        if col in X_val.columns:
-            X_val[col] = X_val[col].astype('category')
-        if col in X_test.columns:
-            X_test[col] = X_test[col].astype('category')
+    for train_idx, val_idx in kf.split(X_train_full, y_train_full):
+        X_tr, X_va = X_train_full.iloc[train_idx].copy(), X_train_full.iloc[val_idx].copy()
+        y_tr, y_va = y_train_full.iloc[train_idx], y_train_full.iloc[val_idx]
+
+        X_tr_proc, X_va_proc = multivalue_preprocessing(X_tr, X_va)
+        cached_folds.append((X_tr_proc, y_tr, X_va_proc, y_va))
 
     def objective(trial):
         params = {
-            'n_estimators': trial.suggest_int("n_estimators", 500, 3000),
-            'learning_rate': trial.suggest_float("learning_rate", 0.01, 0.2, log=True),
-            'max_depth': trial.suggest_int("max_depth", 3, 10),
-            'min_child_weight': trial.suggest_int("min_child_weight", 1, 10),
-            'subsample': trial.suggest_float("subsample", 0.6, 1.0),
-            'colsample_bytree': trial.suggest_float("colsample_bytree", 0.5, 1.0),
-            'gamma': trial.suggest_float("gamma", 0, 1.0),
-            'reg_alpha': trial.suggest_float("reg_alpha", 0, 10),
-            'reg_lambda': trial.suggest_float("reg_lambda", 0.1, 20),
+            'n_estimators': 3000,
+            'learning_rate': trial.suggest_float("learning_rate", 0.01, 0.1, log=True),
+            'max_depth': trial.suggest_int("max_depth", 3, 8),
+            'min_child_weight': trial.suggest_int("min_child_weight", 1, 20),
+            'subsample': trial.suggest_float("subsample", 0.5, 1.0),
+            'colsample_bytree': trial.suggest_float("colsample_bytree", 0.4, 1.0),
+            'gamma': trial.suggest_float("gamma", 1e-8, 5.0, log=True),
+            'reg_alpha': trial.suggest_float('reg_alpha', 1e-8, 10.0, log=True),
+            'reg_lambda': trial.suggest_float('reg_lambda', 1e-3, 10.0, log=True),
             'tree_method': "hist",
             'eval_metric': "rmse",
             'device': "cuda",
@@ -330,67 +436,82 @@ def xgboost(train_df, val_df, test_df, target, seed):
             'random_state': seed
         }
 
-        kf = KFold(n_splits=5, shuffle=True, random_state=seed)
         fold_scores = []
 
-        for fold, (train_idx, val_idx) in enumerate(kf.split(X_search, y_search)):
-            X_search_train, X_search_val = X_search.iloc[train_idx], X_search.iloc[val_idx]
-            y_search_train, y_search_val = y_search.iloc[train_idx], y_search.iloc[val_idx]
-
-            model = xgb.XGBRegressor(**params)
+        for fold_idx, (X_tr, y_tr, X_va, y_va) in enumerate(cached_folds):
+            model = XGBRegressor(**params, early_stopping_rounds=50)
 
             model.fit(
-                X_search_train, y_search_train,
-                eval_set=[(X_search_val, y_search_val)],
+                X_tr,
+                y_tr,
+                eval_set=[(X_va, y_va)],
                 verbose=False
             )
 
-            preds = model.predict(X_search_val)
-            score = mean_squared_error(y_search_val, preds)
-            fold_scores.append(score)
+            preds = model.predict(X_va)
+            fold_rmse = np.sqrt(mean_squared_error(y_va, preds))
+            fold_scores.append(fold_rmse)
+            current_mean_rmse = np.mean(fold_scores)
+            trial.report(current_mean_rmse, step=fold_idx)
 
-            trial.report(score, step=fold)
             if trial.should_prune():
                 raise optuna.TrialPruned()
 
         return np.mean(fold_scores)
 
-    study = optuna.create_study(direction="minimize")
-    study.optimize(objective, n_trials=40)
+    print("Starting Optuna hyperparameter search...")
+    study = optuna.create_study(
+        direction="minimize",
+        sampler=optuna.samplers.TPESampler(n_startup_trials=10, seed=seed),
+        pruner=optuna.pruners.MedianPruner(
+            n_startup_trials=10,
+            n_warmup_steps=0     
+        )
+    )
+    study.optimize(objective, n_trials=50)
 
-    print(f"Best Fold MSE: {study.best_value:.4f}")
-    print(f"Best hyperparameters:")
+    print(f"\nBest Fold RMSE: {study.best_value:.4f}")
+    print("Best Hyperparameters:")
     best_params = study.best_params
-    for key, value in best_params:
-        print(f"{key}:{value}")
+    for key, value in best_params.items():
+        print(f"  {key}: {value}")
 
-    best_xgb_model = XGBRegressor(
-        **best_params, 
-        tree_method="hist",
-        device="cuda",
-        enable_categorical=True,
-        random_state=seed,
-        early_stopping_rounds=15
+    X_train_full_proc, X_test_proc = multivalue_preprocessing(X_train_full, X_test_full)
+
+    X_train_final_proc, X_val_final_proc, y_train_final, y_val_final = train_test_split(
+        X_train_full_proc, y_train_full, test_size=0.1875, random_state=seed
     )
 
+    final_model_params = {
+        **best_params,
+        'tree_method': "hist",
+        'device': "cuda",
+        'enable_categorical': True,
+        'random_state': seed,
+        'eval_metric': "rmse"
+    }
+
+    best_xgb_model = XGBRegressor(**final_model_params, early_stopping_rounds=50)
     best_xgb_model.fit(
-        X_train,
-        y_train,
-        eval_set=[(X_val, y_val)],
+        X_train_final_proc,
+        y_train_final,
+        eval_set=[(X_val_final_proc, y_val_final)],
         verbose=100
     )
 
-    y_pred = best_xgb_model.predict(X_test)
+    X_test_proc = X_test_proc[X_train_final_proc.columns]
 
-    mse = mean_squared_error(y_test, y_pred)
+    y_pred = best_xgb_model.predict(X_test_proc)
+    mse = mean_squared_error(y_test_full, y_pred)
+    r2 = r2_score(y_test_full, y_pred)
 
     output_dir = "data/ml_predictions"
+    os.makedirs(output_dir, exist_ok=True)
     model_path = os.path.join(output_dir, f"xgb_{target}.ubj")
     best_xgb_model.save_model(model_path)
 
-    print(f"Target {target} -> MSE: {mse:.4f}")
-
-    return mse
+    print(f"\nTarget {target} -> Final Test MSE: {mse:.4f} | Final Test R^2: {r2:.4f}")
+    return mse, r2
 
 # Runs a custom PyTorch model and returns test MSE
 # All data went through preprocessing
@@ -618,22 +739,28 @@ if __name__ == "__main__":
     print(f"Using device: {device}")
 
     train_df = pd.read_parquet("data/ml_data/train_df.parquet")
-    val_df = pd.read_parquet("data/ml_data/val_df.parquet")
     test_df = pd.read_parquet("data/ml_data/test_df.parquet")
     inference_df = pd.read_parquet("data/ml_data/inference_df.parquet")
 
     rf_mses = {}
+    rf_r2s = {}
     xgb_mses = {}
-    pt_mses = {}
+    xgb_r2s = {}
 
     metrics = ['score', 'wc', 'favorites', 'dropped', 'forum']
 
-    for metric in metrics:
-        rf_mses[metric] = []
-        xgb_mses[metric] = []
-        pt_mses[metric] = []
+    xgb_mse_path = Path("data/ml_predictions/models/xgb_mses.json")
+    xgb_r2_path = Path("data/ml_predictions/models/xgb_r2s.json")
+    rf_mse_path = Path("data/ml_predictions/models/rf_mses.json")
+    rf_r2_path = Path("data/ml_predictions/models/rf_r2s.json")
 
-    for seed in [123, 1337, 4307, 6767, 42]:
+    for metric in metrics:
+        xgb_r2s[metric] = []
+        xgb_mses[metric] = []
+        rf_r2s[metric] = []
+        rf_mses[metric] = []
+
+    for seed in [42]:
         random.seed(seed)
         torch.manual_seed(seed)
         np.random.seed(seed)
@@ -643,18 +770,28 @@ if __name__ == "__main__":
 
         for metric in metrics:
             print(f"Metric: {metric}")
-            mse = random_forest(train_df, val_df, test_df, metric, seed)
-            rf_mses[metric].append(mse)
+            # mse, r2 = random_forest(train_df, test_df, metric, seed)
+            # print("Calculating feature importance...")
+            # rf_feature_importance(train_df, test_df, metric)
+            # print("Saving predictions...")
+            # rf_inference(train_df, inference_df, metric)
 
-            mse = xgboost(train_df, val_df, test_df, metric, seed)
-            xgb_mses[metric].append(mse)
+            psyren_df = inference_df[inference_df['title'] == "Psyren"].drop(columns=['title'])
+            rf_feature_importance(train_df, psyren_df, metric)
 
-    for metric in metrics:
-        feature_importance(test_df, metric)
-        xgboost_infer(inference_df, metric)
+            # with open(rf_mse_path, "w", encoding="utf-8") as f:
+            #     json.dump(rf_mses, f, indent=4)
 
+            # with open(rf_r2_path, "w", encoding="utf-8") as f:
+            #     json.dump(rf_r2s, f, indent=4)
 
-    print("Random Forest MSEs:")
-    pprint(rf_mses, indent=4)
-    print("XGBoost MSEs:")
-    pprint(xgb_mses, indent=4)
+            # mse, r2 = xgboost(train_df, test_df, metric, seed)
+            # xgb_mses[metric].append(mse)
+            # xgb_r2s[metric].append(r2)
+
+            # with open(xgb_mse_path, "w", encoding="utf-8") as f:
+            #     json.dump(xgb_mses, f, indent=4)
+
+            # with open(xgb_r2_path, "w", encoding="utf-8") as f:
+            #     json.dump(xgb_r2s, f, indent=4)
+

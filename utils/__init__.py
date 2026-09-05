@@ -14,5 +14,7 @@ from .preprocessing_utils import (
     theme_mlb_svd,
     demographic_mlb,
     studio_mlb_svd,
-    producer_mlb_svd
+    producer_mlb_svd,
+    multivalue_preprocessing,
+    encode_features
 )

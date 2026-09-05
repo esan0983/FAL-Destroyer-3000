@@ -16,9 +16,6 @@ def clean(df):
     lists = ['genres', 'demographics', 'themes', 'studios', 'producers']
     df[lists] = df[lists].map(parse_list_col)
 
-    print("DF NaNs:")
-    print(df.isna().sum())
-
     df = df.drop(columns=['thumbnail'])
     return df
 

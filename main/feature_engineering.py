@@ -66,78 +66,22 @@ def splitting(df, init_rows):
     inference_df = df.tail(len(df) - init_rows)
     xgb_df = df.head(init_rows)
 
-    train_val_df, test_df = train_test_split(xgb_df, test_size=0.15, random_state=42)
-    train_df, val_df = train_test_split(train_val_df, test_size=0.1765, random_state=42)
+    train_df, test_df = train_test_split(xgb_df, test_size=0.15, random_state=42)
 
     train_df = train_df.drop(columns=['title'])
-    val_df = val_df.drop(columns=['title'])
     test_df = test_df.drop(columns=['title'])
 
-    return train_df, val_df, test_df, inference_df
+    return train_df, test_df, inference_df
 
-def post_split(train_df, val_df, test_df, inference_df):
-    # GENRES
-    temp_train, temp_val, temp_test, temp_inf = genre_mlb_svd(
-        train_df=train_df,
-        val_df=val_df,
-        test_df=test_df,
-        inference_df=inference_df
-    )
-
-    train_df = train_df.join(temp_train)
-    val_df = val_df.join(temp_val)
-    test_df = test_df.join(temp_test)
-    inference_df = inference_df.join(temp_inf)
-
-    # THEMES
-    temp_train, temp_val, temp_test, temp_inf = theme_mlb_svd(
-        train_df=train_df,
-        val_df=val_df,
-        test_df=test_df,
-        inference_df=inference_df
-    )
-
-    train_df = train_df.join(temp_train)
-    val_df = val_df.join(temp_val)
-    test_df = test_df.join(temp_test)
-    inference_df = inference_df.join(temp_inf)
-
-    # STUDIOS
-    temp_train, temp_val, temp_test, temp_inf = studio_mlb_svd(
-        train_df=train_df,
-        val_df=val_df,
-        test_df=test_df,
-        inference_df=inference_df
-    )
-
-    train_df = train_df.join(temp_train)
-    val_df = val_df.join(temp_val)
-    test_df = test_df.join(temp_test)
-    inference_df = inference_df.join(temp_inf)
-
-    # PRODUCERS
-    temp_train, temp_val, temp_test, temp_inf = producer_mlb_svd(
-        train_df=train_df,
-        val_df=val_df,
-        test_df=test_df,
-        inference_df=inference_df
-    )
-
-    train_df = train_df.join(temp_train)
-    val_df = val_df.join(temp_val)
-    test_df = test_df.join(temp_test)
-    inference_df = inference_df.join(temp_inf)
-
+def post_split(train_df,  test_df, inference_df):
     # DEMOGRAPHICS
-    temp_train, temp_val, temp_test, temp_inf = demographic_mlb(
+    temp_train, temp_test, temp_inf = demographic_mlb(
         train_df=train_df,
-        val_df=val_df,
         test_df=test_df,
         inference_df=inference_df
     )
 
     train_df = temp_train
-    val_df = temp_val
     test_df = temp_test
     inference_df = temp_inf
 
@@ -146,9 +90,9 @@ def post_split(train_df, val_df, test_df, inference_df):
 
     processed_dfs = {}
 
-    for name, df in [('train', train_df), ('val', val_df), ('test', test_df), ('inference', inference_df)]:
+    for name, df in [('train', train_df), ('test', test_df), ('inference', inference_df)]:
         df.columns = df.columns.str.replace(' ', '_')
-        df = df.drop(columns=['drop_rate', 'genres', 'themes', 'sequel']) # WILL DITCH TARGET ENCODING FOR NOW
+        df = df.drop(columns=['drop_rate', 'sequel', 'studios', 'producers']) # WILL DITCH TARGET ENCODING FOR NOW
 
         if name == 'inference':
             df = df.drop(columns=[metric for metric in metrics if metric in df.columns])
@@ -157,9 +101,9 @@ def post_split(train_df, val_df, test_df, inference_df):
             
         processed_dfs[name] = df
 
-    train_df, val_df, test_df, inference_df = processed_dfs['train'], processed_dfs['val'], processed_dfs['test'], processed_dfs['inference']
+    train_df, test_df, inference_df = processed_dfs['train'], processed_dfs['test'], processed_dfs['inference']
 
-    return train_df, val_df, test_df, inference_df
+    return train_df, test_df, inference_df
 
 if __name__ == "__main__":
     initial_df = pd.read_parquet("data/processed/anime_data_1.parquet")
@@ -172,11 +116,10 @@ if __name__ == "__main__":
     print("Saving stats_df...")
     stats_df.to_parquet("data/processed/stats_df.parquet", engine="pyarrow")
 
-    train_df, val_df, test_df, inference_df = splitting(df, init_rows)
-    train_df, val_df, test_df, inference_df = post_split(train_df, val_df, test_df, inference_df)
+    train_df, test_df, inference_df = splitting(df, init_rows)
+    train_df, test_df, inference_df = post_split(train_df, test_df, inference_df)
 
     print("Saving ML DFs...")
     train_df.to_parquet("data/ml_data/train_df.parquet", engine="pyarrow")
-    val_df.to_parquet("data/ml_data/val_df.parquet", engine="pyarrow")
     test_df.to_parquet("data/ml_data/test_df.parquet", engine="pyarrow")
     inference_df.to_parquet("data/ml_data/inference_df.parquet", engine="pyarrow")
