@@ -82,21 +82,18 @@ Since the forum variable can not be directly converted to points, we will still 
 * The API can only track forum posts, not unique posters. We will assume that there is a linear correlation between forum posts and unique posters.
 * Some chunks of data are recorded around 24 hours apart due to rate limits, which slightly poisons our machine learning process.
 
-## More Commit Notes (9/4)
-* Thwarted data leakage errors: MLB and SVD leaked training data during cross-validation
-* New surprising roster
+## More Commit Notes (9/5)
+* Added comments to uncommented functions
+* Drafted and uploaded Kalman Filter documentation
 
 ## Post-commit Plans
 * Work on Statistics notebook further
-* Decide on noise and observation matrices for the Kalman filter
-* Finish the Kalman filter overleaf doc
 * Draft powerpoint presentation
 * Update filters on streamlit dashboard
 * Add plots to streamlit dashboard
 * Test untested functions
-* Comment on new functions
 
 ## Biggest Lessons
-* Simplicity is best: no need for CNNs or image tagging or sentiment analysis when you can yield great results with. Choose a simple approach and check if the data you're studying makes sense in the first place.
+* Simplicity is best: no need for CNNs or image tagging or sentiment analysis when you can yield great results with simpler models. Choose a simple approach and check if the data you're studying makes sense in the first place. Consider trade-offs.
 * Data leakage is serious: this was probably the toughest issue I've faced, especially when using cross-validation.
 * Cache folds: to avoid preprocessing every optuna trial, you can cache the folds beforehand.

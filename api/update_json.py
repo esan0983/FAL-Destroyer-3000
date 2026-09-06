@@ -14,6 +14,7 @@ from api.api_utils import (
     get_anime_episodes
 )
 
+# Makes a new JSON
 def create_json(df):
     titles = df['title']
 
@@ -28,6 +29,7 @@ def create_json(df):
 
     return current_stats
 
+# Loads the JSON
 def load_json():
     target_dir = Path("../data/processed")
     file_path = target_dir / "current_stats.json"
@@ -41,6 +43,8 @@ def load_json():
 
     return current_stats
 
+# Updates the JSON with a new day_num key
+# Make sure day_num is correct or it will overwrite and mess with the Kalman filter
 def update_json(df, stats_json, day_num):
     current_stats = stats_json
     ids = df['mal_id']
@@ -117,14 +121,11 @@ def update_json(df, stats_json, day_num):
 
         day[df.loc[df['mal_id'] == mal_id, 'title'].item()] = {
             "score" : score,
-            "forum": forum, 
-            "dropped": dropped, 
-            "dropped_dot": 0,
             "wc": wc, 
-            "wc_dot": 0,
             "favorites": favorites, 
-            "favorites_dot": 0,
-            "wc_raw": 0,
+            "dropped": dropped,
+            "forum": forum,  
+            "wc_raw": wc,
             "wc_raw_dot": 0
         }
 
@@ -161,19 +162,17 @@ def update_json(df, stats_json, day_num):
         temp_dropped = day.get(df.loc[df['mal_id'] == mal_id, 'title'].item()).get('dropped')
         temp_forum = day.get(df.loc[df['mal_id'] == mal_id, 'title'].item()).get('forum')
 
-        prev_wc = prev_day.get(df.loc[df['mal_id'] == mal_id, 'title'].item()).get('wc')
-        prev_favorites = prev_day.get(df.loc[df['mal_id'] == mal_id, 'title'].item()).get('favorites')
-        prev_dropped = prev_day.get(df.loc[df['mal_id'] == mal_id, 'title'].item()).get('dropped')
+        prev_wc_raw = prev_day.get(df.loc[df['mal_id'] == mal_id, 'title'].item()).get('wc_raw')
+        temp_wc_raw = day.get(df.loc[df['mal_id'] == mal_id, 'title'].item()).get('wc_raw')
 
         day[df.loc[df['mal_id'] == mal_id, 'title'].item()] = {
             "score" : (temp_score - score_mean) / score_std,
-            "forum": (temp_forum - forum_mean) / forum_std, 
-            "dropped": (temp_dropped - dropped_mean) / dropped_std, 
-            "dropped_dot": ((temp_dropped - dropped_mean) / dropped_std) - prev_dropped,
             "wc": (temp_wc - wc_mean) / wc_std, 
-            "wc_dot": ((temp_wc - wc_mean) / wc_std) - prev_wc,
             "favorites": (temp_favorites - favorites_mean) / favorites_std, 
-            "favorites_dot": ((temp_favorites - favorites_mean) / favorites_std) - prev_favorites
+            "dropped": (temp_dropped - dropped_mean) / dropped_std, 
+            "forum": (temp_forum - forum_mean) / forum_std,
+            "wc_raw": prev_wc_raw,
+            "wc_raw_dot": temp_wc_raw - prev_wc_raw
         }
 
     return current_stats

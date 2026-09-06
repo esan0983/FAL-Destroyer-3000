@@ -142,6 +142,7 @@ def feature_importance(test_df, target):
     plt.savefig(save_path, dpi=300, bbox_inches='tight')
     plt.close()
 
+# Feature importance for the RF model
 def rf_feature_importance(train_df, test_df, target):
     metrics = ['score', 'wc', 'favorites', 'dropped', 'forum']
     unwanted_metrics = [metric for metric in metrics if metric != target]
@@ -173,6 +174,7 @@ def rf_feature_importance(train_df, test_df, target):
     plt.close()
     print(f"Individual feature plot saved to {indiv_save_path}")
 
+# Using inference data and a specified metric to load the RF model and save predictions as JSON
 def rf_inference(train_df, inference_df, target):
     metrics = ['score', 'wc', 'favorites', 'dropped', 'forum']
     unwanted_metrics = [metric for metric in metrics if metric != target]

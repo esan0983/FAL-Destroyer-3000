@@ -1,4 +1,3 @@
-import json
 import matplotlib.pyplot as plt
 
 # untested
@@ -33,16 +32,14 @@ def graph(measured_scores, predicted_scores):
 # untested
 def get_measures(current_json, current_criteria):
     final_scores = {}
-    for day in current_json:
-        final_scores[day] = {}
-        main_dict = current_json.get(day, {})
-        criteria_dict = current_criteria.get(day, {})
 
-        for title in main_dict:
-            final_scores[day][title] = 0
-
+    for title in current_json[0]:
+        final_scores[title] = [0 for _ in range(len(current_json))]
+        for day in current_json:
+            main_dict = current_json.get(day, {})
+            criteria_dict = current_criteria.get(day, {})
             for metric in ['score', 'wc', 'favorites', 'dropped', 'forum']:
-                final_scores[title] += main_dict.get(title, {}).get(metric, 0) * criteria_dict.get(title, {}).get(metric, 0)
+                final_scores[title][day] += main_dict.get(title, {}).get(metric, 0) * criteria_dict.get(title, {}).get(metric, 0)
 
     return final_scores
 
@@ -50,12 +47,36 @@ def get_measures(current_json, current_criteria):
 if __name__ == "__main__":
     # Variables:
     # measured_scores: JSON and should have a day zero, updated by get_measures()
-    # current_json: updated from update_json() 
-    # current_criteria: to be multiplied to the stats in current_json
-    # predicted_scores: JSON, should only start from day one
-    # Both JSONs should have this structure:
+    # current_json: updated from update_json() , has a day zero
+    # current_criteria: to be multiplied to the stats in current_json, has a day zero, manually typed from weekly results
+    # (thank god it's weekly)
+    # predicted_scores: JSON, should only start from day one, manually typed from forecasting.py
+    # Structures:
     # measured_scores = {
     #     "Insert title here" : [day1_score, day2_score, etc]
+    # }
+    # current_json = {
+    #     0 : {
+    #          "Insert title here" : {
+    #               metric1: num
+    #               metric2:num
+    #          }
+    #     }
+    #     1 : {
+    #          "Insert title here" : {
+    #               metric1: num
+    #               metric2:num
+    #          }
+    #     }
+    #     ...
+    # }
+    # Same with prediction_scores but one-indexed
+    # current_criteria = {
+    #     0 : {
+    #          metric1 : num
+    #          metric2: num
+    #     }
+    #     ...
     # }
 
     predictions, current_criteria, predicted_scores = {}, {}, {}

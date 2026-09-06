@@ -154,6 +154,7 @@ def producer_mlb_svd(train_df, test_df):
 
     return train_svd_df, test_svd_df
 
+# Preprocessing pipeline using various MLB and SVD functions
 def multivalue_preprocessing(X_train, X_val):
     drop_cols = ['genres', 'themes']
 
@@ -187,6 +188,7 @@ def demographic_mlb(train_df, test_df, inference_df):
 
     return train_res, test_res, inference_res
 
+# One-hot encoding that avoid data leakage for every CV fold
 def encode_features(X_train, X_val):
     cat_cols = ['rating', 'source', 'season', 'prequel_season']
     existing_cols = [c for c in cat_cols if c in X_train.columns]
