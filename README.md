@@ -39,7 +39,12 @@ The following modifications were done:
 * Parses through multi-valued columns such as "genre" and turns them into lists
 
 ## Interesting Findings from EDA
-WIP due to the 4th data pass
+* Significantly more anime during Spring and Fall that pass the data cleaning criteria.
+* Score means by genre are the lowest for Ecchi and Erotica, but the Ecchi genre has more outliers.
+* Possibly due to a small sample size, the Villainness theme has a very narrow distribution of scores
+* Score means were high during mid-to-late 90's and dipped during mid-to-late 2010's.
+* While seasonal scores are mostly the same, Spring has a lot of positive outliers.
+* Sequels have a higher score average, and they have significantly less outliers too. This makes sense: if you have a sequel in the first place, then the previous season must've been passable.
 
 ## Feature Engineering
 * Added a "drop rate" feature (dropped / wc) for statistical analysis
@@ -56,7 +61,7 @@ WIP due to the 4th data pass
 * Used multi-label binarization + truncated SVD for genres, themes, studios, and producers, and only multi-label binarization for demographics
 
 ## Statistics
-WIP due to the 4th data pass.  
+WIP
 
 We will mainly be focusing on three metrics: score, wc (watching + completed) and drop rate (dropped / wc).
 
@@ -67,7 +72,11 @@ We will mainly be focusing on three metrics: score, wc (watching + completed) an
 * Preuqel wc vs. anime wc yielded (log-log) $R^2 = 0.954$
 
 ## Machine Learning
-Two models will be tested for the fourth data pass: Random Forest and XGBoost. Both will undergo cross-validation and hyperparameter tuning via Optuna. Pruning is performed for each trial, so each trial does not have to do all 5 CV folds. Five seeds were chosen, and for each metric, random forest attained a higher R^2 score for all five metrics, with a clean 5 - 0 sweep for each metric.
+Two models will be tested for the fourth data pass: Random Forest and XGBoost. Both will undergo cross-validation and hyperparameter tuning via Optuna. Pruning is performed for each trial, so each trial does not have to do all 5 CV folds. Five seeds were chosen, and for each metric, random forest attained a higher R^2 score for all five metrics, with a clean 5 - 0 sweep for each metric.  
+
+Feature importance charts calculated by SHAP values heavily suggest that source material score has a big impact on anime score, while for the rest of the metrics that are raw counts, source material popularity has the biggest impact. Here is a feature importance chart used on testing data for the WC metric, which reached $R^2 = 0.8622$:  
+
+![Feature importance for WC](readme/feature_importance_individual_wc.png)
 
 ## Forecasting
 
@@ -82,16 +91,16 @@ Since the forum variable can not be directly converted to points, we will still 
 * The API can only track forum posts, not unique posters. We will assume that there is a linear correlation between forum posts and unique posters.
 * Some chunks of data are recorded around 24 hours apart due to rate limits, which slightly poisons our machine learning process.
 
-## More Commit Notes (9/5)
-* Added comments to uncommented functions
-* Drafted and uploaded Kalman Filter documentation
+## More Commit Notes (9/7)
+* Had Claude test forecast_graphing.py and fixed bugs during the process
+* Added a streamlit skeleton for an interactive forecast chart
+* Updated EDA section of README
 
 ## Post-commit Plans
 * Work on Statistics notebook further
 * Draft powerpoint presentation
 * Update filters on streamlit dashboard
 * Add plots to streamlit dashboard
-* Test untested functions
 
 ## Biggest Lessons
 * Simplicity is best: no need for CNNs or image tagging or sentiment analysis when you can yield great results with simpler models. Choose a simple approach and check if the data you're studying makes sense in the first place. Consider trade-offs.

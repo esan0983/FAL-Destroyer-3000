@@ -34,8 +34,8 @@ explorer_page = st.Page(
 )
 
 about_page = st.Page(
-    "pages/3_About.py",
-    title="About / Notes",
+    "pages/3_Roster_Forecasting.py",
+    title="Roster Forecasting",
     icon="ℹ️",
 )
 
