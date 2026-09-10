@@ -772,20 +772,13 @@ if __name__ == "__main__":
 
         for metric in metrics:
             print(f"Metric: {metric}")
-            # mse, r2 = random_forest(train_df, test_df, metric, seed)
-            # print("Calculating feature importance...")
-            # rf_feature_importance(train_df, test_df, metric)
-            # print("Saving predictions...")
-            # rf_inference(train_df, inference_df, metric)
+            mse, r2 = random_forest(train_df, test_df, metric, seed)
 
-            psyren_df = inference_df[inference_df['title'] == "Psyren"].drop(columns=['title'])
-            rf_feature_importance(train_df, psyren_df, metric)
+            with open(rf_mse_path, "w", encoding="utf-8") as f:
+                json.dump(rf_mses, f, indent=4)
 
-            # with open(rf_mse_path, "w", encoding="utf-8") as f:
-            #     json.dump(rf_mses, f, indent=4)
-
-            # with open(rf_r2_path, "w", encoding="utf-8") as f:
-            #     json.dump(rf_r2s, f, indent=4)
+            with open(rf_r2_path, "w", encoding="utf-8") as f:
+                json.dump(rf_r2s, f, indent=4)
 
             # mse, r2 = xgboost(train_df, test_df, metric, seed)
             # xgb_mses[metric].append(mse)
@@ -796,4 +789,7 @@ if __name__ == "__main__":
 
             # with open(xgb_r2_path, "w", encoding="utf-8") as f:
             #     json.dump(xgb_r2s, f, indent=4)
+
+            rf_feature_importance(train_df, test_df, metric)
+            rf_inference(train_df, inference_df, metric)
 

@@ -156,7 +156,7 @@ def producer_mlb_svd(train_df, test_df):
 
 # Preprocessing pipeline using various MLB and SVD functions
 def multivalue_preprocessing(X_train, X_val):
-    drop_cols = ['genres', 'themes']
+    drop_cols = ['genres', 'themes', 'studios', 'producers']
 
     temp_train, temp_val = genre_mlb_svd(X_train, X_val)
     X_train = pd.concat([X_train, temp_train], axis=1)
@@ -166,8 +166,16 @@ def multivalue_preprocessing(X_train, X_val):
     X_train = pd.concat([X_train, temp_train], axis=1)
     X_val = pd.concat([X_val, temp_val], axis=1)
 
-    X_train = X_train.drop(columns=drop_cols)
-    X_val = X_val.drop(columns=drop_cols)
+    # temp_train, temp_val = studio_mlb_svd(X_train, X_val)
+    # X_train = pd.concat([X_train, temp_train], axis=1)
+    # X_val = pd.concat([X_val, temp_val], axis=1)
+
+    # temp_train, temp_val = producer_mlb_svd(X_train, X_val)
+    # X_train = pd.concat([X_train, temp_train], axis=1)
+    # X_val = pd.concat([X_val, temp_val], axis=1)
+
+    X_train = X_train.drop(columns=drop_cols, errors='ignore')
+    X_val = X_val.drop(columns=drop_cols, errors='ignore')
 
     return X_train, X_val
 

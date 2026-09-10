@@ -109,8 +109,8 @@ def acing_predictions(current_json, func_roster, ace_threshold, tolerance):
             temp_measurements[day][1] = current_stats.get(day, {}).get(title, {}).get("wc_raw_dot", 0)
 
         temp_observation = np.eye(2)
-        temp_noise = np.array([[6.25, 2.5], 
-                                [2.5, 1]])
+        temp_noise = np.array([[0.25, 0.5], 
+                                [0.5, 1]]) # sigma = 1
         temp_covs = sample_covariance(current_stats, 2)
         temp_transition = np.array([[1, 1], 
                                     [0, 1]])
@@ -145,7 +145,8 @@ def criteria_prediction(current_criteria, roster):
             temp_measurements[day][4] = current_criteria.get(day, {}).get(title, {}).get("forum", 0)
 
         temp_observation = np.eye(5)
-        temp_noise = np.eye(5) # CHANGE THIS TO ESTIMATED NOISE
+        temp_noise = np.eye(5)
+        np.fill_diagonal(temp_noise, [0.4, 0.4, 0.4, 0.4, 0.4]) # eyeballed
         temp_covs = sample_covariance(current_criteria, 5)
         temp_transition = np.eye(5)
         
@@ -182,25 +183,16 @@ def main_prediction(current_json, roster):
 
         for day in current_metrics:
             temp_measurements[day][0] = current_metrics.get(day, {}).get(title, {}).get("score", 0)
-            temp_measurements[day][1] = current_metrics.get(day, {}).get(title, {}).get("forum", 0)
-            temp_measurements[day][2] = current_metrics.get(day, {}).get(title, {}).get("dropped", 0)
-            temp_measurements[day][3] = current_metrics.get(day, {}).get(title, {}).get("dropped_dot", 0)
-            temp_measurements[day][4] = current_metrics.get(day, {}).get(title, {}).get("wc", 0)
-            temp_measurements[day][5] = current_metrics.get(day, {}).get(title, {}).get("wc_dot", 0)
-            temp_measurements[day][6] = current_metrics.get(day, {}).get(title, {}).get("favorites", 0)
-            temp_measurements[day][7] = current_metrics.get(day, {}).get(title, {}).get("favorites_dot", 0)
+            temp_measurements[day][1] = current_metrics.get(day, {}).get(title, {}).get("wc", 0)
+            temp_measurements[day][2] = current_metrics.get(day, {}).get(title, {}).get("favorites", 0)
+            temp_measurements[day][3] = current_metrics.get(day, {}).get(title, {}).get("dropped", 0)
+            temp_measurements[day][4] = current_metrics.get(day, {}).get(title, {}).get("forum", 0)
 
-        temp_observation = np.eye(8)
-        temp_noise = np.eye(8) # CHANGE THIS TO ESTIMATED NOISE
-        temp_covs = sample_covariance(current_metrics, 8)
-        temp_transition = np.array([[0.8, 0, 0, 0, 0, 0, 0, 0],
-                                    [0, 0.8, 0, 0, 0, 0, 0, 0],
-                                    [0, 0, 1, 1, 0, 0, 0, 0],
-                                    [0, 0, 0, 1, 0, 0, 0, 0],
-                                    [0, 0, 0, 0, 1, 1, 0, 0],
-                                    [0, 0, 0, 0, 0, 1, 0, 0],
-                                    [0, 0, 0, 0, 0, 0, 1, 1],
-                                    [0, 0, 0, 0, 0, 0, 0, 1]])
+        temp_observation = np.eye(5)
+        temp_noise = np.zeros((5, 5))
+        np.fill_diagonal(temp_noise, [0.6001, 0.2810, 0.5040, 0.5477, 0.6501]) # refer to the PDF for these numbers
+        temp_covs = sample_covariance(current_metrics, 5)
+        temp_transition = np.eye(5)
         
         temp_kalman = KalmanFilter(temp_transition, temp_observation, temp_noise, temp_covs, temp_measurements)
         if not temp_kalman.check():
@@ -208,14 +200,10 @@ def main_prediction(current_json, roster):
                 return None
         temp_preds = temp_kalman.make_predictions()
         return_dict[title]['score'] = temp_preds[0]
-        return_dict[title]['forum'] = temp_preds[1]
-        return_dict[title]['dropped'] = temp_preds[2]
-        return_dict[title]['dropped_dot'] = temp_preds[3]
-        return_dict[title]['wc'] = temp_preds[4]
-        return_dict[title]['wc_dot'] = temp_preds[5]
-        return_dict[title]['favorites'] = temp_preds[6]
-        return_dict[title]['favorites_dot'] = temp_preds[7]
-
+        return_dict[title]['wc'] = temp_preds[1]
+        return_dict[title]['favorites'] = temp_preds[2]
+        return_dict[title]['dropped'] = temp_preds[3]
+        return_dict[title]['forum'] = temp_preds[4]
     return return_dict
 
 # Updates roster

@@ -76,7 +76,7 @@ Two models will be tested for the fourth data pass: Random Forest and XGBoost. B
 
 Feature importance charts calculated by SHAP values heavily suggest that source material score has a big impact on anime score, while for the rest of the metrics that are raw counts, source material popularity has the biggest impact. Here is a feature importance chart used on testing data for the WC metric, which reached $R^2 = 0.8622$:  
 
-![Feature importance for WC](readme/feature_importance_individual_wc.png)
+![Feature importance for WC](readme/rf_features_wc.png)
 
 ## Forecasting
 
@@ -91,10 +91,9 @@ Since the forum variable can not be directly converted to points, we will still 
 * The API can only track forum posts, not unique posters. We will assume that there is a linear correlation between forum posts and unique posters.
 * Some chunks of data are recorded around 24 hours apart due to rate limits, which slightly poisons our machine learning process.
 
-## More Commit Notes (9/7)
-* Had Claude test forecast_graphing.py and fixed bugs during the process
-* Added a streamlit skeleton for an interactive forecast chart
-* Updated EDA section of README
+## More Commit Notes (9/9)
+* Updated forecasting.py with more appropriate matrices. Note that the Claude test data may or may not work anymore due to change of JSON structure
+* Minor README updates
 
 ## Post-commit Plans
 * Work on Statistics notebook further
@@ -103,6 +102,6 @@ Since the forum variable can not be directly converted to points, we will still 
 * Add plots to streamlit dashboard
 
 ## Biggest Lessons
-* Simplicity is best: no need for CNNs or image tagging or sentiment analysis when you can yield great results with simpler models. Choose a simple approach and check if the data you're studying makes sense in the first place. Consider trade-offs.
+* Simple is best: no need for CNNs or image tagging or sentiment analysis when you can yield great results with simpler models. Choose a simple approach and check if the data you're studying makes sense in the first place. Consider trade-offs.
 * Data leakage is serious: this was probably the toughest issue I've faced, especially when using cross-validation.
 * Cache folds: to avoid preprocessing every optuna trial, you can cache the folds beforehand.
