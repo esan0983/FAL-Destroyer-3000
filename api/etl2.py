@@ -15,11 +15,11 @@ import re
 
 from api.api_utils import (
     get_anime, 
-    get_manga, 
     get_anime_episodes, 
     get_anime_statistics, 
     get_prequel, 
-    get_ids
+    get_ids,
+    get_unique_users
 )
 from api.adaptation_collection import (
     collect_adaptations, 
@@ -58,6 +58,9 @@ def extract_single(id_num, custom_bool):
             if getattr(e, "response", None) is not None and e.response.status_code == 429:
                 print(f"Rate limited on ID {id_num}. Backing off 5s and retrying...")
                 time.sleep(5)
+            elif getattr(e, "response", None) is not None and e.response.status_code in [408, 502, 504]:
+                print(f"WiFi most likely cut out. Backing off 5s and retrying...")
+                time.sleep(5)
             else:
                 break
                 
@@ -78,8 +81,7 @@ def extract_single(id_num, custom_bool):
         (anime.get('type') != "TV" or
         anime.get('airing') or
         anime.get('score') is None or 
-        anime.get('year') is None or
-        anime.get('season') is None)
+        anime.get('year') is None)
     ):
         return "SKIP"  # exists, but filtered out downstream — not a "miss"
 
@@ -116,6 +118,9 @@ def extract_single(id_num, custom_bool):
         except Exception as e:
             if getattr(e, "response", None) is not None and e.response.status_code == 429:
                 print(f"Rate limited on ID {id_num}. Backing off 5s and retrying...")
+                time.sleep(5)
+            elif getattr(e, "response", None) is not None and e.response.status_code in [408, 502, 504]:
+                print(f"WiFi most likely cut out. Backing off 5s and retrying...")
                 time.sleep(5)
             else:
                 break
@@ -155,6 +160,9 @@ def extract_single(id_num, custom_bool):
             if getattr(e, "response", None) is not None and e.response.status_code == 429:
                 print(f"Rate limited on ID {id_num}. Backing off 5s and retrying...")
                 time.sleep(5)
+            elif getattr(e, "response", None) is not None and e.response.status_code in [408, 502, 504]:
+                print(f"WiFi most likely cut out. Backing off 5s and retrying...")
+                time.sleep(5)
             else:
                 break
             
@@ -176,13 +184,19 @@ def extract_single(id_num, custom_bool):
             if getattr(e, "response", None) is not None and e.response.status_code == 429:
                 print(f"Rate limited on ID {id_num}. Backing off 5s and retrying...")
                 time.sleep(5)
+            elif getattr(e, "response", None) is not None and e.response.status_code in [408, 502, 504]:
+                print(f"WiFi most likely cut out. Backing off 5s and retrying...")
+                time.sleep(5)
             else:
                 break
 
+    ep_discussion_urls = [ep.get('forum_url', "")
+                        for ep in eps_json.get('data', [])
+                        if ep.get('mal_id') <= 13]
+
     forum = sum(
-        ep.get('replies', 0)
-        for ep in eps_json.get('data', [])
-        if ep.get('mal_id', 0) <= 13
+        get_unique_users(ep_url)
+        for ep_url in ep_discussion_urls
     )
 
     # IMAGE EXTRACTION
@@ -360,33 +374,33 @@ if __name__ == "__main__":
     custom_bool = False # CHANGE THIS FOR EITHER STANDARD COLLECTION OR FALL 2026 COLLECTION
     initial_data = pd.read_csv("data/raw/current_data.csv") if custom_bool else pd.read_csv("data/raw/anime_data.csv")
 
-    START_ID = 62914  # resume point
+    START_ID = 1  # resume point
     # Set MAX_ID if you want a hard ceiling; otherwise the miss-streak
     # threshold below will stop the crawl once it runs past real MAL IDs.
     MAX_ID = 66000
     MAX_CONSECUTIVE_MISSES = 2500
-    SAVE_EVERY = 25
+    SAVE_EVERY = 5
 
     custom_ids = [30091, 29836, 29974, 29976, 29854, 29865, 30123, 30127, 29758, 30015, 30016, 30144, 30028, 30156, 30030, 30039, 29785, 29786, 29787, 30173, 29803, 30187, 29941, 30205]
 
     # FOR STANDARD COLLECTION
-    # run(
-    #     start_id=START_ID,
-    #     df=initial_data,
-    #     max_id=MAX_ID,
-    #     max_consecutive_misses=MAX_CONSECUTIVE_MISSES,
-    #     save_every=SAVE_EVERY,
-    #     custom_bool=custom_bool
-    # )
+    run(
+        start_id=START_ID,
+        df=initial_data,
+        max_id=MAX_ID,
+        max_consecutive_misses=MAX_CONSECUTIVE_MISSES,
+        save_every=SAVE_EVERY,
+        custom_bool=False
+    )
 
     # FOR FALL 2026 COLLECTION
-    mal_ids = get_ids()
-    run_custom(
-        df=initial_data,
-        mal_ids=mal_ids,
-        save_every=SAVE_EVERY,
-        custom_bool=True
-    )
+    # mal_ids = get_ids()
+    # run_custom(
+    #     df=initial_data,
+    #     mal_ids=mal_ids,
+    #     save_every=SAVE_EVERY,
+    #     custom_bool=True
+    # )
 
     # FOR CUSTOM ID COLLECTION
     # run_custom2(

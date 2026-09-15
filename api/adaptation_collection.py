@@ -92,6 +92,9 @@ def collect_adaptations(mal_ids):
                         if getattr(e, "response", None) is not None and e.response.status_code == 429:
                             print(f"Rate limited on adaptation id {adaptation_id}. Backing off 5s and retrying...")
                             time.sleep(5)
+                        elif getattr(e, "response", None) is not None and e.response.status_code in [408, 502, 504]:
+                            print(f"WiFi most likely cut out. Backing off 5s and retrying...")
+                            time.sleep(5)
                         else:
                             print(f"Failed to get manga data for adaptation {adaptation_id}: {e}")
                             score_lists[mt].append(None)

@@ -5,7 +5,8 @@ from .api_utils import (
     get_anime_statistics,
     get_anime_relations, 
     get_prequel, 
-    get_ids
+    get_ids,
+    get_unique_users
 )
 
 from .adaptation_collection import (

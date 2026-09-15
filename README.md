@@ -108,10 +108,14 @@ Since the forum variable can not be directly converted to points, we will still 
 * The API can only track forum posts, not unique posters. We will assume that there is a linear correlation between forum posts and unique posters.
 * Some chunks of data are recorded around 24 hours apart due to rate limits, which slightly poisons our machine learning process.
 
-## More Commit Notes (9/10)
-* Polished Statistics notebook and further explored feature importance in README
+## More Commit Notes (9/15)
+* FORECASTING MODEL REVAMP:
+    * update_json.py renamed to roster_data_collection.py since we're not dealing with JSONs anymore
 
 ## Post-commit Plans
+* FORECASTING MODEL REVAMP:
+    * Have not tested get_unique_users yet, will be done in a bit
+    * Need to decide if we want a sixth data pass with bs4 scraping for higher accuracy
 * Draft powerpoint presentation
 * Update filters on streamlit dashboard
 * Add plots to streamlit dashboard

@@ -4,3 +4,5 @@
 *.pyc
 data/
 notebooks/.ipynb_checkpoints
+docs/manim/
+media/
