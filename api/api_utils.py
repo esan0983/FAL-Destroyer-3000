@@ -10,7 +10,7 @@ base_url = "https://api.tenrai.org/v1"
 
 def get_anime_page():
     url = f"{base_url}/anime"
-    response = requests.get(url)
+    response = requests.get(url, timeout=15)
 
     if response.status_code == 200:
         anime_data = response.json()
@@ -27,7 +27,7 @@ def get_anime_episodes(id):
     success = False
     while not success:
         try:
-            response = requests.get(url)
+            response = requests.get(url, timeout=15)
             success = True
         except (requests.exceptions.SSLError,
                 requests.exceptions.ConnectionError,
@@ -51,7 +51,7 @@ def get_anime_statistics(id):
     success = False
     while not success:
         try:
-            response = requests.get(url)
+            response = requests.get(url, timeout=15)
             success = True
         except (requests.exceptions.SSLError,
                 requests.exceptions.ConnectionError,
@@ -75,7 +75,7 @@ def get_anime_relations(id):
     success = False
     while not success:
         try:
-            response = requests.get(url)
+            response = requests.get(url, timeout=15)
             success = True
         except (requests.exceptions.SSLError,
                 requests.exceptions.ConnectionError,
@@ -99,7 +99,7 @@ def get_manga(id):
     success = False
     while not success:
         try:
-            response = requests.get(url)
+            response = requests.get(url, timeout=15)
             success = True
         except (requests.exceptions.SSLError,
                 requests.exceptions.ConnectionError,
@@ -124,7 +124,7 @@ def get_anime(id):
     success = False
     while not success:
         try:
-            response = requests.get(url)
+            response = requests.get(url, timeout=15)
             success = True
         except (requests.exceptions.SSLError,
                 requests.exceptions.ConnectionError,
@@ -147,7 +147,7 @@ def get_prequel(id):
     success = False
     while not success:
         try:
-            response = requests.get(url)
+            response = requests.get(url, timeout=15)
             success = True
         except (requests.exceptions.SSLError,
                 requests.exceptions.ConnectionError,
@@ -174,7 +174,7 @@ def get_season(params):
     success = False
     while not success:
         try:
-            response = requests.get(url)
+            response = requests.get(url, timeout=15)
             success = True
         except (requests.exceptions.SSLError,
                 requests.exceptions.ConnectionError,
@@ -185,6 +185,7 @@ def get_season(params):
 
     if response.status_code == 429:
             raise requests.exceptions.HTTPError("Rate limited", response=response)
+
     
     if response.status_code != 200:
         print(f"Failed to retrieve data {response.status_code}")
@@ -224,8 +225,13 @@ def get_ids():
     return mal_ids
 
 def get_unique_users(link: str) -> int:
+    time.sleep(random.uniform(2, 3))
+
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": "https://myanimelist.net/",
     }
 
     unique_users = set()
@@ -237,7 +243,7 @@ def get_unique_users(link: str) -> int:
     while True:
         page_url = link if offset == 0 else f"{link}&show={offset}"
         try:
-            response = requests.get(page_url, headers=headers)
+            response = requests.get(page_url, headers=headers, timeout=15)
         except (requests.exceptions.SSLError,
                 requests.exceptions.ConnectionError,
                 requests.exceptions.Timeout) as e:
@@ -246,9 +252,10 @@ def get_unique_users(link: str) -> int:
             time.sleep(wait)
             continue
 
-        if "Just a moment" in response.text or "cf-challenge" in response.text or response.status_code == 403:
+        if "cf-challenge" in response.text:
             print(f"Possible Cloudflare block at offset {offset}. Stopping and backing off.")
             wait = (3 ** attempt) + random.uniform(0, 1)
+            print(f"Wait time: {wait:.1f} seconds")
             attempt += 1
             time.sleep(wait)
             continue
@@ -297,5 +304,5 @@ def get_unique_users(link: str) -> int:
             break
 
         offset = next_offset
-        time.sleep(random.uniform(2, 3))
+        time.sleep(random.uniform(3, 5))
     return len(unique_users)

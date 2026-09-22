@@ -73,15 +73,14 @@ def extract_single(id_num, custom_bool):
         
     # Criteria from data cleaning:
     # 1. Must be a TV series
-    # 2. Must not be currently airing
-    # 3. Must have a score (justification in README)
-    # 4. Must have a year
-    # 5. Must have a season
+    # 2. Must have a score (justification in README)
+    # 3. Must have a year
+    # 4. Must not be airing
     if (not custom_bool and
         (anime.get('type') != "TV" or
-        anime.get('airing') or
         anime.get('score') is None or 
-        anime.get('year') is None)
+        anime.get('year') is None or
+        anime.get('airing'))
     ):
         return "SKIP"  # exists, but filtered out downstream — not a "miss"
 
@@ -197,7 +196,7 @@ def extract_single(id_num, custom_bool):
     forum = sum(
         get_unique_users(ep_url)
         for ep_url in ep_discussion_urls
-    )
+    ) if None not in ep_discussion_urls else 0
 
     # IMAGE EXTRACTION
     # img_path = "data/images"
@@ -374,7 +373,7 @@ if __name__ == "__main__":
     custom_bool = False # CHANGE THIS FOR EITHER STANDARD COLLECTION OR FALL 2026 COLLECTION
     initial_data = pd.read_csv("data/raw/current_data.csv") if custom_bool else pd.read_csv("data/raw/anime_data.csv")
 
-    START_ID = 1  # resume point
+    START_ID = 54431  # resume point
     # Set MAX_ID if you want a hard ceiling; otherwise the miss-streak
     # threshold below will stop the crawl once it runs past real MAL IDs.
     MAX_ID = 66000

@@ -23,7 +23,7 @@ Model A Data:
 Model A Prediction Variables (which will then be used as Model B's priors):
 * Score
 * Watching + Completed 
-* Total forum messages for first thirteen episodes (STRONG assumption: linear correlation between forum messages and unique users)
+* Unique users per episode discussion forum, summed over the first 13 episodes
 * Dropped 
 * Favorites
 
@@ -57,8 +57,8 @@ The following modifications were done:
 * Turned string features into category types for XGBoost compatibility
 * Dropped episodes (mostly known only after the anime is released), mal_id (not useful), and sequel (XGBoost does not need indicator variables)
 * Saved the dataframe for statistical analysis
-* Split into training, validation, testing, and inference dataframes to avoid data train-test leakage (not relevant for now but will keep just in case)
-* Used multi-label binarization + truncated SVD for genres, themes, studios, and producers, and only multi-label binarization for demographics
+* Split into training, validation, testing, and inference dataframes to avoid data train-test leakage
+* Used multi-label binarization + truncated SVD for genres and themes, and only multi-label binarization for demographics
 
 ## Statistics
 WIP
@@ -97,9 +97,7 @@ If you notice, the SHAP importance favors heavily towards the source material, b
 
 ## Forecasting
 
-For forecasting, I used Kalman filters. Since it's too technical to put all of it in this README, I have uploaded the PDF in the docs folder. 
-
-Since the forum variable can not be directly converted to points, we will still use a z-scoring system for our forecasting model. As a result, I made a heuristic that will decide which anime will have higher FAL points.
+Initially, I wanted to use something fancy for forecasting: Kalman Filters. However, I realized later on that there is a simpler way: eyeballing. The plan is to code a new file that retrieves the number of points I'll get for that week (ideally retrieved a few hours before weekly points are awarded).
 
 ## Limitations
 * I was not able to do AniList GraphQL API because it's highly prone to mismatched titles.
@@ -108,14 +106,11 @@ Since the forum variable can not be directly converted to points, we will still 
 * The API can only track forum posts, not unique posters. We will assume that there is a linear correlation between forum posts and unique posters.
 * Some chunks of data are recorded around 24 hours apart due to rate limits, which slightly poisons our machine learning process.
 
-## More Commit Notes (9/15)
-* FORECASTING MODEL REVAMP:
-    * update_json.py renamed to roster_data_collection.py since we're not dealing with JSONs anymore
+## More Commit Notes (9/22)
+* True unique users for each of the 13 episode forums are now recorded via bs4 web scraping
 
 ## Post-commit Plans
-* FORECASTING MODEL REVAMP:
-    * Have not tested get_unique_users yet, will be done in a bit
-    * Need to decide if we want a sixth data pass with bs4 scraping for higher accuracy
+* Create code that gives the user the total weekly points for all the applicable metrics that week, for each anime. Should have a dictionary for which metrics apply (instead of a boolean, put a score coefficient like 0.5 or 0.25 and ignore if it's zero) and which episode discussion forums to scrape
 * Draft powerpoint presentation
 * Update filters on streamlit dashboard
 * Add plots to streamlit dashboard
