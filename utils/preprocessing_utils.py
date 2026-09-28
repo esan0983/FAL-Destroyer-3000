@@ -198,6 +198,10 @@ def demographic_mlb(train_df, test_df, inference_df):
 
 # One-hot encoding that avoid data leakage for every CV fold
 def encode_features(X_train, X_val):
+    for df in (X_train, X_val):
+        nullable_cols = df.select_dtypes(include=['Int64', 'Int32', 'boolean', 'Float64']).columns
+        df[nullable_cols] = df[nullable_cols].astype('float64')
+        
     cat_cols = ['rating', 'source', 'season', 'prequel_season']
     existing_cols = [c for c in cat_cols if c in X_train.columns]
     
@@ -218,3 +222,11 @@ def encode_features(X_train, X_val):
     X_val_encoded = ct.transform(X_val)
 
     return X_train_encoded, X_val_encoded
+
+def symlog_transform(x):
+    """Applies a base-e symmetric log transform to an array."""
+    return np.sign(x) * np.log1p(np.abs(x))
+
+def symlog_inverse(x):
+    """Reverses the base-e symmetric log transform."""
+    return np.sign(x) * np.expm1(np.abs(x))

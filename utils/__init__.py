@@ -15,5 +15,7 @@ from .preprocessing_utils import (
     studio_mlb_svd,
     producer_mlb_svd,
     multivalue_preprocessing,
-    encode_features
+    encode_features,
+    symlog_inverse,
+    symlog_transform
 )

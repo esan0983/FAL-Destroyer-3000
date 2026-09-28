@@ -86,7 +86,7 @@ We will mainly be focusing on three metrics: score, wc (watching + completed) an
 ### Demographics
 The general trend is that the Kids demographic usually has the most negative impact on all metrics.
 
-## Machine Learning
+## Machine Learning Part 1
 Two models will be tested for the fourth data pass: Random Forest and XGBoost. Both will undergo cross-validation and hyperparameter tuning via Optuna. Pruning is performed for each trial, so each trial does not have to do all 5 CV folds. Five seeds were chosen, and for each metric, random forest attained a higher R^2 score for all five metrics, with a clean 5 - 0 sweep for each metric.  
 
 Feature importance charts calculated by SHAP values heavily suggest that source material score has a big impact on anime score, while for the rest of the metrics that are raw counts, source material popularity has the biggest impact. Here is a feature importance chart used on testing data for the WC metric, which reached $R^2 = 0.8622$:  
@@ -95,23 +95,39 @@ Feature importance charts calculated by SHAP values heavily suggest that source 
 
 If you notice, the SHAP importance favors heavily towards the source material, but if you check the Statistics section, there was a higher correlation coefficient for prequels. This has led me to perform an OLS regression analysis between source material and prequels. The analysis showed moderate correlation (0.50 and 0.64 for score and wc, respectively), which means that it's possible that since the two are moderately correlated, the RF model put significantly more weight towards the source material.
 
-## Forecasting
+## Machine Learning Part 2 (Pseudo-Forecasting)
 
-Initially, I wanted to use something fancy for forecasting: Kalman Filters. However, I realized later on that there is a simpler way: eyeballing. The plan is to code a new file that retrieves the number of points I'll get for that week (ideally retrieved a few hours before weekly points are awarded).
+Initially, I wanted to use something fancy for forecasting: Kalman Filters. After realizing they weren't going to be that useful, I settled with eyeballing the stats. However, the slow-burn bias from the previous machine learning section was bigger than I imagined: the top anime the machine learning model chose, even if perfectly correct (not likely), only forecasts future success, and not success within the Fantasy Anime League.  
+
+Miraculously, a few days before the league started, I had access to week-by-week FAL data, so I restarted the entire data pipeline:
+1. Compiled all possible week-by-week FAL data, taking into account scoring system changes
+2. Matched all the anime titles with their respective statistics from the original database via a very basic SQL JOIN
+3. Trained 13 LightGBM models, one per week, with the target variable being the points each anime received every week
+4. Fine-tuned the models such that it gets punished eight times more if the predictions for the top 10% of anime were inaccurate
+5. Calculated week-by-week cumulative sums
+6. Filtered the graph to only include the top 20 out of 73 anime
+  
+In addition to this, I shifted philosophies: **it was time to use human intuition as well**. Here's the top 20 anime that resulted from 13 models:  
+
+![Top 20](readme/cumulative_top20.png)  
+
+A seasoned FAL veteran can easily tell what's wrong with this graph: some anime are simply too overrated by the model. A few examples include Psyren, Dragon Ball Super, and Kanata Kara. This is where I had to step in. Watching some of the PVs (I missed some of them, which I regret), I decided on my final roster. Note that I messed up the active/bench placements:  
+
+![Roster](readme/roster.png)
+
+## Results
+TBA!
 
 ## Limitations
 * I was not able to do AniList GraphQL API because it's highly prone to mismatched titles.
 * It's possible for an anime to have two or more source materials of the same type (Manga, LN, etc). The code adaptation_collection.py only collects statistics from the lowest MAL ID instead of collecting all of them. This is done to make sure that lists are aligned and to save API calls as I have rate limits for Tenrai API. This is a justifiable approximation as this is an extreme minority edge case.
 * I can only collect statistics on the day of data collection, not when the first 13 episodes were released. Hence, there will be a "slow burn" bias where old, popular shows will have inflated counts for most statistics.
-* The API can only track forum posts, not unique posters. We will assume that there is a linear correlation between forum posts and unique posters.
 * Some chunks of data are recorded around 24 hours apart due to rate limits, which slightly poisons our machine learning process.
 
-## More Commit Notes (9/22)
-* True unique users for each of the 13 episode forums are now recorded via bs4 web scraping
+## More Commit Notes (9/28)
+* A 7th attempt on the data pipeline is finished. This takes into account accurate historical week-by-week FAL data. Refer to Machine Learning Part 2.
 
 ## Post-commit Plans
-* Create code that gives the user the total weekly points for all the applicable metrics that week, for each anime. Should have a dictionary for which metrics apply (instead of a boolean, put a score coefficient like 0.5 or 0.25 and ignore if it's zero) and which episode discussion forums to scrape
-* Draft powerpoint presentation
 * Update filters on streamlit dashboard
 * Add plots to streamlit dashboard
 

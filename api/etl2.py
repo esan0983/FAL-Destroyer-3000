@@ -26,13 +26,6 @@ from api.adaptation_collection import (
     target_media_types 
 )   
 
-
-
-
-
-
-
-
 COLUMNS = [
     'mal_id', 'title', 'source', 'episodes', 'cohort', 'genres',  'demographics',
     'themes', 'rating', 'sequel', 'prequel_id', 'favorites', 'score', 'wc',
@@ -75,12 +68,10 @@ def extract_single(id_num, custom_bool):
     # 1. Must be a TV series
     # 2. Must have a score (justification in README)
     # 3. Must have a year
-    # 4. Must not be airing
     if (not custom_bool and
         (anime.get('type') != "TV" or
         anime.get('score') is None or 
-        anime.get('year') is None or
-        anime.get('airing'))
+        anime.get('year') is None)
     ):
         return "SKIP"  # exists, but filtered out downstream — not a "miss"
 
@@ -147,7 +138,6 @@ def extract_single(id_num, custom_bool):
 
     time.sleep(0.34)
 
-    # COLLECT ANIME STATISTICS
     get_statistics_success = False
     stat_json = None
     while not get_statistics_success:
@@ -172,7 +162,6 @@ def extract_single(id_num, custom_bool):
         wc = None
         dropped = None
 
-    # WILL FIX IN THE FUTURE, BUGGED FOR NOW
     get_episodes_success = False
     while not get_episodes_success:
         try:
@@ -193,10 +182,14 @@ def extract_single(id_num, custom_bool):
                         for ep in eps_json.get('data', [])
                         if ep.get('mal_id') <= 13]
 
-    forum = sum(
-        get_unique_users(ep_url)
-        for ep_url in ep_discussion_urls
-    ) if None not in ep_discussion_urls else 0
+    # We only need this for Model A
+    # forum = sum(
+    #     get_unique_users(ep_url)
+    #     for ep_url in ep_discussion_urls
+    # ) if None not in ep_discussion_urls else 0
+
+    # Placeholder
+    forum = 0
 
     # IMAGE EXTRACTION
     # img_path = "data/images"
@@ -342,7 +335,7 @@ def run_custom(df, mal_ids, save_every, custom_bool=True):
     print("Finished!")
     return df
 
-def run_custom2(df, custom_ids, custom_bool=False):
+def run_custom2(df, custom_ids, custom_bool=False, save_every=5):
     print("ETL Pipeline (Custom IDS) Currently Running!")
     pending_rows = []
 
@@ -353,13 +346,25 @@ def run_custom2(df, custom_ids, custom_bool=False):
             if e.response.status_code == 429:
                 print(f"Rate limited on id {current_id}. Backing off 5s and retrying...")
                 time.sleep(5)
-                continue 
+                continue
             else:
                 print(f"Unhandled HTTP error on id {current_id}: {e}. Skipping.")
+                continue
 
-        pending_rows.append(result)
+        if result is None:
+            print(f"id {current_id}: not found")
+        elif result == "SKIP":
+            print(f"id {current_id}: exists but breaks criteria, skipping")
+        else:
+            pending_rows.append(result)
+            print(f"id {current_id}: collected '{result['title']}'")
 
-    # Flush any remaining rows
+        if len(pending_rows) >= save_every:
+            new_data = pd.DataFrame(pending_rows, columns=COLUMNS)
+            df = pd.concat([df, new_data], ignore_index=True)
+            df = load_data(df, custom_bool)
+            pending_rows = []
+
     if pending_rows:
         new_data = pd.DataFrame(pending_rows, columns=COLUMNS)
         df = pd.concat([df, new_data], ignore_index=True)
@@ -380,17 +385,17 @@ if __name__ == "__main__":
     MAX_CONSECUTIVE_MISSES = 2500
     SAVE_EVERY = 5
 
-    custom_ids = [30091, 29836, 29974, 29976, 29854, 29865, 30123, 30127, 29758, 30015, 30016, 30144, 30028, 30156, 30030, 30039, 29785, 29786, 29787, 30173, 29803, 30187, 29941, 30205]
+    custom_ids = get_ids()
 
     # FOR STANDARD COLLECTION
-    run(
-        start_id=START_ID,
-        df=initial_data,
-        max_id=MAX_ID,
-        max_consecutive_misses=MAX_CONSECUTIVE_MISSES,
-        save_every=SAVE_EVERY,
-        custom_bool=False
-    )
+    # run(
+    #     start_id=START_ID,
+    #     df=initial_data,
+    #     max_id=MAX_ID,
+    #     max_consecutive_misses=MAX_CONSECUTIVE_MISSES,
+    #     save_every=SAVE_EVERY,
+    #     custom_bool=False
+    # )
 
     # FOR FALL 2026 COLLECTION
     # mal_ids = get_ids()
@@ -402,8 +407,8 @@ if __name__ == "__main__":
     # )
 
     # FOR CUSTOM ID COLLECTION
-    # run_custom2(
-    #     df=initial_data,
-    #     custom_ids=custom_ids,
-    #     custom_bool=False
-    # )
+    run_custom2(
+        df=initial_data,
+        custom_ids=custom_ids,
+        custom_bool=False
+    )

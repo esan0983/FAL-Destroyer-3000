@@ -170,11 +170,11 @@ def get_prequel(id):
         raise ValueError()
 
 def get_season(params):
-    url = f"{base_url}/seasons/2026/fall"
+    url = f"{base_url}/seasons/2026/summer"
     success = False
     while not success:
         try:
-            response = requests.get(url, timeout=15)
+            response = requests.get(url, params=params, timeout=15)
             success = True
         except (requests.exceptions.SSLError,
                 requests.exceptions.ConnectionError,

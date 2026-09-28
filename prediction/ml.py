@@ -185,9 +185,17 @@ def random_forest(train_df, test_df, target, seed):
         ))
 
     def objective(trial):
+
+        max_features_type = trial.suggest_categorical('max_features_type', ['sqrt', 'float'])
+
+        if max_features_type == 'sqrt':
+            max_features = 'sqrt'
+        else:
+            max_features = trial.suggest_float('max_features', 0.1, 0.5)
+            
         params = {
             'n_estimators': trial.suggest_int('n_estimators', 200, 400),
-            'max_features': trial.suggest_float('max_features', 0.1, 0.5),
+            'max_features': max_features,
             'max_depth': trial.suggest_int('max_depth', 5, 25),
             'min_samples_split': trial.suggest_int('min_samples_split', 4, 8),
             'min_samples_leaf': trial.suggest_int('min_samples_leaf', 2, 6),
