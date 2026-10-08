@@ -26,16 +26,17 @@ from api.adaptation_collection import (
     target_media_types 
 )   
 
-COLUMNS = [
-    'mal_id', 'title', 'source', 'episodes', 'cohort', 'genres',  'demographics',
+BASE_COLUMNS = [
+    'mal_id', 'title', 'source', 'episodes', 'cohort', 'genres', 'demographics',
     'themes', 'rating', 'sequel', 'prequel_id', 'favorites', 'score', 'wc',
-    'dropped', 'forum', 'doujinshi_score',
-    'doujinshi_members', 'manhua_score', 'manhua_members',
-    'novel_score', 'novel_members', 'manhwa_score',
-    'manhwa_members', 'light_novel_score', 'light_novel_members',
-    'manga_score', 'manga_members', 'one_shot_score',
-    'one_shot_members', 'studios', 'producers'
+    'dropped', 'forum', 'studios', 'producers'
 ]
+ADAPTATION_COLUMNS = [
+    f"{mt.lower().replace(' ', '_').replace('-', '_')}_{field}"
+    for mt in sorted(target_media_types)
+    for field in ('score', 'members', 'start_year', 'end_year')
+]
+COLUMNS = BASE_COLUMNS + ADAPTATION_COLUMNS
 
 def extract_single(id_num, custom_bool):
     anime_json = None
@@ -81,8 +82,8 @@ def extract_single(id_num, custom_bool):
     year = anime.get('year')
     season = anime.get('season')
     rating = anime.get('rating')
-    favorites = anime.get('favorites')
-    score = anime.get('score')
+    favorites = 0 # for forecasting
+    score = 0 # for forecasting
 
     cohort = season + " " + str(year)
 
@@ -119,7 +120,7 @@ def extract_single(id_num, custom_bool):
     # GET ADAPTATION INFORMATION FROM ADAPTATION_COLLECTION.PY
     # COLLECT ADAPTATIONS ACCEPTS A LIST OF IDS, SO WE TAKE ID_NUM TO BE A ONE ELEMENT ARRAY
     temp_list = [id_num]
-    score_list, member_list = collect_adaptations(temp_list)
+    score_list, member_list, year_start_list, year_end_list = collect_adaptations(temp_list)
 
     # TURN INTO KEY AND VALUE
     adaptation_data = {}
@@ -136,51 +137,66 @@ def extract_single(id_num, custom_bool):
         else:
             adaptation_data[f"{col_key}_members"] = None
 
+        if year_start_list[mt][0] is not None:
+            adaptation_data[f"{col_key}_start_year"] = year_start_list[mt][0]
+        else:
+            adaptation_data[f"{col_key}_start_year"] = None
+
+        if year_end_list[mt][0] is not None:
+            adaptation_data[f"{col_key}_end_year"] = year_end_list[mt][0]
+        else:
+            adaptation_data[f"{col_key}_end_year"] = None
+
     time.sleep(0.34)
 
-    get_statistics_success = False
-    stat_json = None
-    while not get_statistics_success:
-        try:
-            stat_json = get_anime_statistics(id_num)
-            print(f"get_anime_statistics successful for {id_num}!")
-            get_statistics_success = True
-        except Exception as e:
-            if getattr(e, "response", None) is not None and e.response.status_code == 429:
-                print(f"Rate limited on ID {id_num}. Backing off 5s and retrying...")
-                time.sleep(5)
-            elif getattr(e, "response", None) is not None and e.response.status_code in [408, 502, 504]:
-                print(f"WiFi most likely cut out. Backing off 5s and retrying...")
-                time.sleep(5)
-            else:
-                break
+    # NOT NEEDED FOR FORECASTING
+    # get_statistics_success = False
+    # stat_json = None
+    # while not get_statistics_success:
+    #     try:
+    #         stat_json = get_anime_statistics(id_num)
+    #         print(f"get_anime_statistics successful for {id_num}!")
+    #         get_statistics_success = True
+    #     except Exception as e:
+    #         if getattr(e, "response", None) is not None and e.response.status_code == 429:
+    #             print(f"Rate limited on ID {id_num}. Backing off 5s and retrying...")
+    #             time.sleep(5)
+    #         elif getattr(e, "response", None) is not None and e.response.status_code in [408, 502, 504]:
+    #             print(f"WiFi most likely cut out. Backing off 5s and retrying...")
+    #             time.sleep(5)
+    #         else:
+    #             break
             
-    if stat_json is not None:
-        wc = stat_json.get('data').get('watching') + stat_json.get('data').get('completed')
-        dropped = stat_json.get('data').get('dropped')
-    else:
-        wc = None
-        dropped = None
+    # if stat_json is not None:
+    #     wc = stat_json.get('data').get('watching') + stat_json.get('data').get('completed')
+    #     dropped = stat_json.get('data').get('dropped')
+    # else:
+    #     wc = None
+    #     dropped = None
 
-    get_episodes_success = False
-    while not get_episodes_success:
-        try:
-            eps_json = get_anime_episodes(id_num)
-            print(f"get_anime_episodes successful for {id_num}!")
-            get_episodes_success = True
-        except Exception as e:
-            if getattr(e, "response", None) is not None and e.response.status_code == 429:
-                print(f"Rate limited on ID {id_num}. Backing off 5s and retrying...")
-                time.sleep(5)
-            elif getattr(e, "response", None) is not None and e.response.status_code in [408, 502, 504]:
-                print(f"WiFi most likely cut out. Backing off 5s and retrying...")
-                time.sleep(5)
-            else:
-                break
+    # get_episodes_success = False
+    # while not get_episodes_success:
+    #     try:
+    #         eps_json = get_anime_episodes(id_num)
+    #         print(f"get_anime_episodes successful for {id_num}!")
+    #         get_episodes_success = True
+    #     except Exception as e:
+    #         if getattr(e, "response", None) is not None and e.response.status_code == 429:
+    #             print(f"Rate limited on ID {id_num}. Backing off 5s and retrying...")
+    #             time.sleep(5)
+    #         elif getattr(e, "response", None) is not None and e.response.status_code in [408, 502, 504]:
+    #             print(f"WiFi most likely cut out. Backing off 5s and retrying...")
+    #             time.sleep(5)
+    #         else:
+    #             break
 
-    ep_discussion_urls = [ep.get('forum_url', "")
-                        for ep in eps_json.get('data', [])
-                        if ep.get('mal_id') <= 13]
+    # FOR FORECASTING PURPOSES
+    wc = 0
+    dropped = 0
+
+    # ep_discussion_urls = [ep.get('forum_url', "")
+    #                     for ep in eps_json.get('data', [])
+    #                     if ep.get('mal_id') <= 13]
 
     # We only need this for Model A
     # forum = sum(
@@ -378,24 +394,22 @@ if __name__ == "__main__":
     custom_bool = False # CHANGE THIS FOR EITHER STANDARD COLLECTION OR FALL 2026 COLLECTION
     initial_data = pd.read_csv("data/raw/current_data.csv") if custom_bool else pd.read_csv("data/raw/anime_data.csv")
 
-    START_ID = 54431  # resume point
+    START_ID = 1  # resume point
     # Set MAX_ID if you want a hard ceiling; otherwise the miss-streak
     # threshold below will stop the crawl once it runs past real MAL IDs.
     MAX_ID = 66000
     MAX_CONSECUTIVE_MISSES = 2500
-    SAVE_EVERY = 5
-
-    custom_ids = get_ids()
+    SAVE_EVERY = 10
 
     # FOR STANDARD COLLECTION
-    # run(
-    #     start_id=START_ID,
-    #     df=initial_data,
-    #     max_id=MAX_ID,
-    #     max_consecutive_misses=MAX_CONSECUTIVE_MISSES,
-    #     save_every=SAVE_EVERY,
-    #     custom_bool=False
-    # )
+    run(
+        start_id=START_ID,
+        df=initial_data,
+        max_id=MAX_ID,
+        max_consecutive_misses=MAX_CONSECUTIVE_MISSES,
+        save_every=SAVE_EVERY,
+        custom_bool=False
+    )
 
     # FOR FALL 2026 COLLECTION
     # mal_ids = get_ids()
@@ -407,8 +421,8 @@ if __name__ == "__main__":
     # )
 
     # FOR CUSTOM ID COLLECTION
-    run_custom2(
-        df=initial_data,
-        custom_ids=custom_ids,
-        custom_bool=False
-    )
+    # run_custom2(
+    #     df=initial_data,
+    #     custom_ids=custom_ids,
+    #     custom_bool=False
+    # )

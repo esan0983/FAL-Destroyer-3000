@@ -34,6 +34,8 @@ def get_adaptation_entries(relations_json):
 def collect_adaptations(mal_ids):
     score_lists = {mt: [] for mt in target_media_types}
     member_lists = {mt: [] for mt in target_media_types}
+    year_start_lists = {mt: [] for mt in target_media_types}
+    year_end_lists = {mt: [] for mt in target_media_types}
 
     for i, mal_id in enumerate(mal_ids):
         print(f"Processing mal_id {mal_id}...")
@@ -52,14 +54,18 @@ def collect_adaptations(mal_ids):
                     print(f"Rate limited on mal_id {mal_id}. Backing off 5s and retrying...")
                     time.sleep(5)
                 else:
-                    for mt in target_media_types:
-                        score_lists[mt].append(None)
-                        member_lists[mt].append(None)
                     relations_success = True
                     relations_json = None
                     break
 
         if relations_json is None:
+            # keep all lists aligned (covers both exceptions and non-200 -> None)
+            for mt in target_media_types:
+                score_lists[mt].append(None)
+                member_lists[mt].append(None)
+                year_start_lists[mt].append(None)
+                year_end_lists[mt].append(None)
+            assert all(len(v) == i + 1 for v in score_lists.values())
             continue
 
         adaptations = get_adaptation_entries(relations_json)
@@ -82,11 +88,15 @@ def collect_adaptations(mal_ids):
                             print(f"No manga data for adaptation {adaptation_id} (source {mal_id}).")
                             score_lists[mt].append(None)
                             member_lists[mt].append(None)
+                            year_start_lists[mt].append(None)
+                            year_end_lists[mt].append(None)
                             request_success = True
                             continue
                         print(f"Called source material for {mal_id}! Source ID is {adaptation_id}.")
                         score_lists[mt].append(manga_json.get("data", {}).get("score"))
                         member_lists[mt].append(manga_json.get("data", {}).get("members"))
+                        year_start_lists[mt].append(manga_json.get("data", {}).get("published", {}).get("prop", {}).get("from", {}).get("year", 0))
+                        year_end_lists[mt].append(manga_json.get("data", {}).get("published", {}).get("prop", {}).get("to", {}).get("year", 0))
                         request_success = True
                     except Exception as e:
                         if getattr(e, "response", None) is not None and e.response.status_code == 429:
@@ -99,24 +109,32 @@ def collect_adaptations(mal_ids):
                             print(f"Failed to get manga data for adaptation {adaptation_id}: {e}")
                             score_lists[mt].append(None)
                             member_lists[mt].append(None)
+                            year_start_lists[mt].append(None)
+                            year_end_lists[mt].append(None)
                             request_success = True
             else:
                 score_lists[mt].append(None)
                 member_lists[mt].append(None)
+                year_start_lists[mt].append(None)
+                year_end_lists[mt].append(None)
 
         assert all(len(v) == i + 1 for v in score_lists.values())
         assert all(len(v) == i + 1 for v in member_lists.values())
+        assert all(len(v) == i + 1 for v in year_start_lists.values())
+        assert all(len(v) == i + 1 for v in year_end_lists.values())
 
-    return score_lists, member_lists
+    return score_lists, member_lists, year_start_lists, year_end_lists
 
 
-def build_dataframe(mal_ids, score_lists, member_lists):
+def build_dataframe(mal_ids, score_lists, member_lists, year_start_lists, year_end_lists):
     data = {"mal_id": mal_ids}
 
     for mt in target_media_types:
         col_key = mt.lower().replace(" ", "_").replace("-", "_")
         data[f"{col_key}_score"] = score_lists[mt]
         data[f"{col_key}_members"] = member_lists[mt]
+        data[f"{col_key}_start_year"] = year_start_lists[mt]
+        data[f"{col_key}_end_year"] = year_end_lists[mt]
 
     return pd.DataFrame(data)
 
@@ -124,8 +142,8 @@ def main():
     df_ids = pd.read_parquet(INPUT_PATH)
     mal_ids = df_ids["mal_id"].tolist()
 
-    score_lists, member_lists = collect_adaptations(mal_ids)
-    result_df = build_dataframe(mal_ids, score_lists, member_lists)
+    score_lists, member_lists, year_start_lists, year_end_lists = collect_adaptations(mal_ids)
+    result_df = build_dataframe(mal_ids, score_lists, member_lists, year_start_lists, year_end_lists)
 
     os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
     result_df.to_parquet(OUTPUT_PATH, index=False)

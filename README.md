@@ -124,12 +124,16 @@ TBA!
 * I can only collect statistics on the day of data collection, not when the first 13 episodes were released. Hence, there will be a "slow burn" bias where old, popular shows will have inflated counts for most statistics.
 * Some chunks of data are recorded around 24 hours apart due to rate limits, which slightly poisons our machine learning process.
 
-## More Commit Notes (9/28)
-* A 7th attempt on the data pipeline is finished. This takes into account accurate historical week-by-week FAL data. Refer to Machine Learning Part 2.
+## More Commit Notes (10/8)
+* Collected source material release dates
+* Weekly data is now labeled by their cohorts to minimize data loss during the cleaning process
+* Minimizing data loss is now completed
 
 ## Post-commit Plans
-* Update filters on streamlit dashboard
-* Add plots to streamlit dashboard
+* Figure out how to deal with gathering streaming service data
+* Add a start year and end year for members and score separately
+* Add week 0 PTW
+* Somehow figure out release dates
 
 ## Biggest Lessons
 * Simple is best: no need for CNNs or image tagging or sentiment analysis when you can yield great results with simpler models. Choose a simple approach and check if the data you're studying makes sense in the first place. Consider trade-offs.

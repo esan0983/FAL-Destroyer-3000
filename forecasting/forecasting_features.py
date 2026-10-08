@@ -4,20 +4,39 @@ import numpy as np
 from pathlib import Path
 from sklearn.model_selection import train_test_split
 
-from utils import demographic_mlb, parse_list_col, symlog_transform
+from utils import demographic_mlb, parse_list_col
 
 def pre_split(df):
-    df['demographics'] = df['demographics'].apply(parse_list_col)
-    df['genres'] = df['genres'].apply(parse_list_col)
-    df['themes'] = df['themes'].apply(parse_list_col)
-
+    # current_data.csv comes straight from read_csv, so these columns are strings like
+    # "['Shounen', 'Seinen']" there, while the processed parquets already hold real lists.
+    # Iterating over a string yields single characters, which is where the warning came from.
+    lists = ['genres', 'demographics', 'themes']
+    df[lists] = df[lists].map(parse_list_col)
 
     media_types = ['manga', 'novel', 'light_novel', 'one_shot', 'manhwa', 'manhua', 'doujinshi']
     score_cols = [media_type + "_score" for media_type in media_types]
-    member_cols = [media_type + "_members" for media_type in media_types] 
+    member_cols = [media_type + "_members" for media_type in media_types]
+    start_cols = [media_type + "_start_year" for media_type in media_types]
+    end_cols = [media_type + "_end_year" for media_type in media_types]
+
     df['adaptation_score'] = df[score_cols].apply(lambda row: np.nanmax(row.values) if row.notna().any() else np.nan, axis=1)
     df['adaptation_members'] = df[member_cols].apply(lambda row: np.nanmax(row.values) if row.notna().any() else np.nan, axis=1)
-    df = df.drop(columns=score_cols + member_cols)
+
+    # Start/end year of whichever source material has the highest member count.
+    # Ties go to the earliest type in media_types; no source material -> NaN.
+    members = df[member_cols].apply(pd.to_numeric, errors='coerce').to_numpy(dtype=float)
+    has_source = ~np.isnan(members).all(axis=1)
+    best_idx = np.where(np.isnan(members), -np.inf, members).argmax(axis=1)
+    rows = np.arange(len(df))
+
+    for new_col, year_cols in [('adaptation_start_year', start_cols), ('adaptation_end_year', end_cols)]:
+        years = df[year_cols].apply(pd.to_numeric, errors='coerce').to_numpy(dtype=float)
+        picked = years[rows, best_idx]
+        # 0 is the placeholder collect_adaptations uses when a year is missing
+        picked[~has_source | (picked == 0)] = np.nan
+        df[new_col] = picked
+
+    df = df.drop(columns=score_cols + member_cols + start_cols + end_cols)
 
     df[['season', 'year']] = df['cohort'].str.split(" ", expand=True)
     df = df.drop(columns=['cohort'])
@@ -57,8 +76,7 @@ def post_split(train_df,  test_df, inference_df):
             test_df=test_df,
             inference_df=inference_df
         )
-
-
+    
     train_df = temp_train
     test_df = temp_test
     inference_df = temp_inf
