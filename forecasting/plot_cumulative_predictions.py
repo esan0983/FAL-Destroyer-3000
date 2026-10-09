@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 
 BASE_DIR = Path("data/forecasting/ml_data")
 NUM_WEEKS = 13
-OUTPUT_PATH = BASE_DIR / "cumulative_top20.png"
+OUTPUT_PATH = BASE_DIR / "cumulative_top15.png"
 
 EXCLUDED_TITLES = {"Kusuriya no Hitorigoto 3rd Season", "Black Clover 2nd Season"}
 
@@ -41,9 +41,9 @@ def build_cumulative_df():
 
 def plot_top20(cumulative_df):
     final_totals = cumulative_df.iloc[-1].sort_values(ascending=False)
-    top15_titles = final_totals.head(20).index.tolist()
+    top15_titles = final_totals.head(15).index.tolist()
 
-    plt.figure(figsize=(20, 12))
+    plt.figure(figsize=(40, 24))
 
     for title in top15_titles:
         plt.plot(
@@ -54,7 +54,7 @@ def plot_top20(cumulative_df):
             label=title,
         )
 
-    plt.title("Top 20 Cumulative Predicted Points by Week", fontsize=20)
+    plt.title("Top 15 Cumulative Predicted Points by Week", fontsize=20)
     plt.xlabel("Week", fontsize=16)
     plt.ylabel("Cumulative Predicted Points", fontsize=16)
     plt.xticks(range(1, NUM_WEEKS + 1), fontsize=12)

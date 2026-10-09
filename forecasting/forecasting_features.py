@@ -6,6 +6,29 @@ from sklearn.model_selection import train_test_split
 
 from utils import demographic_mlb, parse_list_col
 
+def pick_years(primary, tiebreak, start_years, end_years):
+    """
+    All inputs are (n_rows, n_media_types) float arrays. For each row, picks the media
+    type with the highest `primary` value (ties broken by `tiebreak`, then by column
+    order) and returns that type's start and end year. Rows with no `primary` value
+    at all get NaN. A year of 0 is the placeholder collect_adaptations uses for a
+    missing year, so it also becomes NaN.
+    """
+    has_primary = ~np.isnan(primary).all(axis=1)
+    primary_filled = np.where(np.isnan(primary), -np.inf, primary)
+    is_best = primary_filled == primary_filled.max(axis=1, keepdims=True)
+    tiebreak_filled = np.where(np.isnan(tiebreak), -1.0, tiebreak)
+    best_idx = np.where(is_best, tiebreak_filled, -np.inf).argmax(axis=1)
+
+    rows = np.arange(len(primary))
+    picked_start = start_years[rows, best_idx].copy()
+    picked_end = end_years[rows, best_idx].copy()
+
+    for picked in (picked_start, picked_end):
+        picked[~has_primary | (picked == 0)] = np.nan
+
+    return picked_start, picked_end
+
 def pre_split(df):
     # current_data.csv comes straight from read_csv, so these columns are strings like
     # "['Shounen', 'Seinen']" there, while the processed parquets already hold real lists.
@@ -22,19 +45,21 @@ def pre_split(df):
     df['adaptation_score'] = df[score_cols].apply(lambda row: np.nanmax(row.values) if row.notna().any() else np.nan, axis=1)
     df['adaptation_members'] = df[member_cols].apply(lambda row: np.nanmax(row.values) if row.notna().any() else np.nan, axis=1)
 
-    # Start/end year of whichever source material has the highest member count.
-    # Ties go to the earliest type in media_types; no source material -> NaN.
+    # Start/end years of the best source material, picked two ways so member count
+    # doesn't dominate: by highest score and by highest member count.
+    scores = df[score_cols].apply(pd.to_numeric, errors='coerce').to_numpy(dtype=float)
     members = df[member_cols].apply(pd.to_numeric, errors='coerce').to_numpy(dtype=float)
-    has_source = ~np.isnan(members).all(axis=1)
-    best_idx = np.where(np.isnan(members), -np.inf, members).argmax(axis=1)
-    rows = np.arange(len(df))
+    starts = df[start_cols].apply(pd.to_numeric, errors='coerce').to_numpy(dtype=float)
+    ends = df[end_cols].apply(pd.to_numeric, errors='coerce').to_numpy(dtype=float)
 
-    for new_col, year_cols in [('adaptation_start_year', start_cols), ('adaptation_end_year', end_cols)]:
-        years = df[year_cols].apply(pd.to_numeric, errors='coerce').to_numpy(dtype=float)
-        picked = years[rows, best_idx]
-        # 0 is the placeholder collect_adaptations uses when a year is missing
-        picked[~has_source | (picked == 0)] = np.nan
-        df[new_col] = picked
+    # by score; ties go to the source with more members
+    df['adaptation_score_start_year'], df['adaptation_score_end_year'] = pick_years(
+        primary=scores, tiebreak=members, start_years=starts, end_years=ends
+    )
+    # by members; ties go to the source with the higher score
+    df['adaptation_members_start_year'], df['adaptation_members_end_year'] = pick_years(
+        primary=members, tiebreak=scores, start_years=starts, end_years=ends
+    )
 
     df = df.drop(columns=score_cols + member_cols + start_cols + end_cols)
 

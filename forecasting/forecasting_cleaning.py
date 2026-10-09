@@ -24,7 +24,7 @@ OUTPUT_COLUMNS = (
     ['anime', 'mal_id', 'source', 'cohort', 'genres', 'demographics', 'themes',
      'rating', 'score', 'wc', 'prequel_id']
     + ADAPTATION_COLUMNS
-    + ['points']
+    + ['points', 'ptw']
 )
 
 
@@ -173,6 +173,7 @@ def recover_data(eliminated_forecasting_df: pd.DataFrame,
     result = i_df.iloc[i_idx].reset_index(drop=True)
     result['anime'] = f_df.iloc[f_idx]['anime'].to_numpy()
     result['points'] = f_df.iloc[f_idx]['points'].to_numpy()
+    result['ptw'] = f_df.iloc[f_idx]['ptw'].to_numpy()
 
     return result[OUTPUT_COLUMNS]
 
@@ -244,7 +245,8 @@ def clean(forecasting_df, initial_df, week) -> None:
             i.wc,
             i.prequel_id,
             {adaptation_select},
-            f.points
+            f.points,
+            f.ptw
         from forecasting_df f
         left join initial_df i on f.anime = i.title
     """).df()

@@ -123,17 +123,17 @@ TBA!
 * It's possible for an anime to have two or more source materials of the same type (Manga, LN, etc). The code adaptation_collection.py only collects statistics from the lowest MAL ID instead of collecting all of them. This is done to make sure that lists are aligned and to save API calls as I have rate limits for Tenrai API. This is a justifiable approximation as this is an extreme minority edge case.
 * I can only collect statistics on the day of data collection, not when the first 13 episodes were released. Hence, there will be a "slow burn" bias where old, popular shows will have inflated counts for most statistics.
 * Some chunks of data are recorded around 24 hours apart due to rate limits, which slightly poisons our machine learning process.
+* The following seasons do not have Week -1 PTW data (the earliest possible PTW + Watyching will be used instead): Fall 2022, Fall 2025, Winter 2026, Summer 2026, Winter 2023
+* Will remove Fall 2022 due to a lack of data
 
 ## More Commit Notes (10/8)
-* Collected source material release dates
-* Weekly data is now labeled by their cohorts to minimize data loss during the cleaning process
-* Minimizing data loss is now completed
+* Added start and end year for adaptation member count and score separately
+* Added week -1 PTW, helped a lot!
 
 ## Post-commit Plans
 * Figure out how to deal with gathering streaming service data
-* Add a start year and end year for members and score separately
-* Add week 0 PTW
-* Somehow figure out release dates
+* Somehow figure out release dates. The idea is to collect release time (to the hour) of all anime and create a "stagger" feature which is how many hours it releases after FAL starts (so anime that premiered before has a negative stagger score).
+* Fill early week data with unreleased anime. You can give them a zero, and this will actually help the model.
 
 ## Biggest Lessons
 * Simple is best: no need for CNNs or image tagging or sentiment analysis when you can yield great results with simpler models. Choose a simple approach and check if the data you're studying makes sense in the first place. Consider trade-offs.

@@ -289,7 +289,8 @@ def lightgbm_ranker(train_df, test_df, week, seed, top_frac=0.2, top_weight=5.0)
 
 
 def main():
-    for i in range(13):
+    for j in range(1):
+        i = 11
         train_df = pd.read_parquet(f"data/forecasting/ml_data/week{i+1}/train_df.parquet")
         test_df = pd.read_parquet(f"data/forecasting/ml_data/week{i+1}/test_df.parquet")
         inference_df = pd.read_parquet(f"data/forecasting/ml_data/week{i+1}/inference_df.parquet")
